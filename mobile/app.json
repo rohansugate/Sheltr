@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Doorway",
+    "slug": "doorway",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "doorway",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.doorway.app.mobile",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.doorway.app.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#faf9f7"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-dev-client"
+    ],
+    "extra": {
+      "doorwayUrl": "http://localhost:3000",
+      "router": {},
+      "eas": {
+        "projectId": "93a40415-e805-4154-a4be-478da04f479f"
+      }
+    },
+    "owner": "rthedeveloper"
+  }
+}

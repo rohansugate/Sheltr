@@ -1,0 +1,39 @@
+{
+  "name": "doorway",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack",
+    "dev:phone": "bash scripts/run-on-phone.sh",
+    "mobile": "cd mobile && npm start",
+    "mobile:install": "cd mobile && npm run ios:install",
+    "mobile:wait": "cd mobile && npm run ios:wait",
+    "mobile:eas": "cd mobile && npm run ios:eas",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint",
+    "ios:sync": "npx cap sync ios",
+    "ios:open": "npx cap open ios",
+    "ios:setup": "npm run ios:sync && npm run ios:open"
+  },
+  "dependencies": {
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/ios": "^8.4.0",
+    "@upstash/redis": "^1.38.0",
+    "next": "16.2.9",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

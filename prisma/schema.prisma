@@ -1,0 +1,162 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SEEKER
+  LANDLORD
+  CASEWORKER
+  ADMIN
+}
+
+enum AccountStatus {
+  PENDING_CLAIM
+  ACTIVE
+  INACTIVE
+}
+
+enum ClientStatus {
+  ONBOARDING
+  ACTIVE
+  MATCHED
+  APPLIED
+  HOUSED
+}
+
+enum ListingSource {
+  MANUAL
+  IMPORTED
+  PLATFORM
+}
+
+enum ListingStatus {
+  ACTIVE
+  PENDING_REVIEW
+  INACTIVE
+}
+
+enum MatchStatus {
+  LIKED
+  PASSED
+  MATCHED
+  APPLIED
+}
+
+enum ApplicationStatus {
+  SENT
+  VIEWED
+  ACCEPTED
+  DECLINED
+}
+
+enum SentTo {
+  LANDLORD
+  CASEWORKER
+  BOTH
+}
+
+model User {
+  id                  String        @id @default(uuid())
+  role                UserRole
+  firstName           String        @map("first_name")
+  lastName            String        @map("last_name")
+  phone               String?
+  email               String?
+  voucherSize         Int?          @map("voucher_size")
+  maxRent             Float?        @map("max_rent")
+  accessibilityNeeds  Boolean?      @map("accessibility_needs")
+  proximityNeeds      String[]      @map("proximity_needs")
+  accountStatus       AccountStatus @default(ACTIVE) @map("account_status")
+  claimCode           String?       @map("claim_code")
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  caseworkerLinks CaseworkerClient[] @relation("Caseworker")
+  seekerLinks     CaseworkerClient[] @relation("Seeker")
+  listings        Listing[]
+  matches         Match[]            @relation("SeekerMatches")
+  actedMatches    Match[]            @relation("ActorMatches")
+
+  @@map("users")
+}
+
+model CaseworkerClient {
+  id           String       @id @default(uuid())
+  caseworkerId String       @map("caseworker_id")
+  seekerId     String       @map("seeker_id")
+  linkedAt     DateTime     @default(now()) @map("linked_at")
+  status       ClientStatus @default(ONBOARDING)
+
+  caseworker User @relation("Caseworker", fields: [caseworkerId], references: [id])
+  seeker     User @relation("Seeker", fields: [seekerId], references: [id])
+
+  @@map("caseworker_clients")
+}
+
+model Listing {
+  id                 String        @id @default(uuid())
+  landlordId         String?       @map("landlord_id")
+  source             ListingSource
+  externalSourceName String?       @map("external_source_name")
+  externalId         String?       @map("external_id")
+  title              String
+  monthlyRent        Float         @map("monthly_rent")
+  bedrooms           Int
+  bathrooms          Int
+  images             String[]
+  isSection8Approved Boolean       @default(true) @map("is_section_8_approved")
+  isGroundFloor      Boolean       @default(false) @map("is_ground_floor")
+  zipCode            String        @map("zip_code")
+  latitude           Float
+  longitude          Float
+  status             ListingStatus @default(ACTIVE)
+
+  landlord User?   @relation(fields: [landlordId], references: [id])
+  matches  Match[]
+
+  @@unique([externalSourceName, externalId])
+  @@map("listings")
+}
+
+model Match {
+  id        String      @id @default(uuid())
+  seekerId  String      @map("seeker_id")
+  listingId String      @map("listing_id")
+  status    MatchStatus
+  actorId   String      @map("actor_id")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  seeker  User    @relation("SeekerMatches", fields: [seekerId], references: [id])
+  listing Listing @relation(fields: [listingId], references: [id])
+  actor   User    @relation("ActorMatches", fields: [actorId], references: [id])
+
+  @@map("matches")
+}
+
+model Application {
+  id                    String            @id @default(uuid())
+  matchId               String            @map("match_id")
+  sentTo                SentTo            @map("sent_to")
+  voucherStatusSnapshot Json              @map("voucher_status_snapshot")
+  status                ApplicationStatus @default(SENT)
+  sentAt                DateTime          @default(now()) @map("sent_at")
+
+  @@map("applications")
+}
+
+model ListingImport {
+  id               String    @id @default(uuid())
+  sourceName       String    @map("source_name")
+  runStartedAt     DateTime  @map("run_started_at")
+  runCompletedAt   DateTime? @map("run_completed_at")
+  recordsProcessed Int       @default(0) @map("records_processed")
+  recordsCreated   Int       @default(0) @map("records_created")
+  recordsUpdated   Int       @default(0) @map("records_updated")
+  recordsFailed    Int       @default(0) @map("records_failed")
+
+  @@map("listing_imports")
+}
