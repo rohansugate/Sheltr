@@ -8,11 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { t } from "@/lib/i18n";
-import { mockLandlord } from "@/lib/mock-data";
+import { resolveLandlord } from "@/lib/current-user";
 import { useDoorwayStore } from "@/lib/store";
 
 export default function LandlordApplicantsPage() {
   const listings = useDoorwayStore((s) => s.listings);
+  const currentUser = useDoorwayStore((s) => s.currentUser);
+  const landlord = resolveLandlord(currentUser);
   const applications = useDoorwayStore((s) => s.applications);
   const showings = useDoorwayStore((s) => s.showings);
   const locale = useDoorwayStore((s) => s.locale);
@@ -22,8 +24,8 @@ export default function LandlordApplicantsPage() {
   const [showingMessages, setShowingMessages] = useState<Record<string, string>>({});
 
   const landlordListingIds = useMemo(
-    () => new Set(listings.filter((l) => l.landlordId === mockLandlord.id).map((l) => l.id)),
-    [listings],
+    () => new Set(listings.filter((l) => l.landlordId === landlord.id).map((l) => l.id)),
+    [listings, landlord.id],
   );
 
   const landlordShowings = showings.filter((s) => landlordListingIds.has(s.listingId));

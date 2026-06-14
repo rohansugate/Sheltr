@@ -21,6 +21,7 @@ import type {
   SeekerConstraints,
   Showing,
   SwipeAction,
+  User,
   UserRole,
 } from "./types";
 import {
@@ -36,8 +37,14 @@ import { SEED_APPLICATIONS, SEED_SHOWINGS } from "./seed-data";
 import type { SyncStatus } from "./demo-sync";
 import { localStateToSyncPayload, mergeDemoPayload } from "./sync-merge";
 import { isDuplicateListing, sortByRelevance } from "./sort-listings";
+import {
+  resolveLandlord,
+  resolveLandlordForListing,
+  resolveSeeker,
+} from "./current-user";
 
 interface DoorwayState {
+  currentUser: User | null;
   role: UserRole | null;
   locale: Locale;
   darkMode: boolean;
@@ -60,6 +67,8 @@ interface DoorwayState {
   lastSyncedAt: string | null;
   syncStatus: SyncStatus | null;
   setSyncStatus: (status: SyncStatus) => void;
+  loginUser: (user: User) => void;
+  logoutUser: () => void;
   setRole: (role: UserRole) => void;
   setLocale: (locale: Locale) => void;
   setDarkMode: (dark: boolean) => void;
@@ -154,6 +163,7 @@ function applyListingsUpdate(
 function inputToListing(
   input: ListingInput,
   status: ListingStatus,
+  landlordId: string,
   id?: string,
   existing?: Listing,
 ): Listing {
@@ -164,7 +174,7 @@ function inputToListing(
       : [DEFAULT_IMAGE];
   return {
     id: id ?? `listing-${Date.now()}`,
-    landlordId: mockLandlord.id,
+    landlordId,
     title: input.title.trim(),
     monthlyRent: input.monthlyRent,
     bedrooms: input.bedrooms,
@@ -206,10 +216,12 @@ function openConversationForApplication(
   app: Application,
   listing: Listing | undefined,
   conversations: Conversation[],
+  currentUser: User | null,
 ): { conversations: Conversation[]; conversation: Conversation } {
   const existing = conversations.find((c) => c.applicationId === app.id);
   if (existing) return { conversations, conversation: existing };
 
+  const landlord = resolveLandlordForListing(listing, currentUser);
   const conversation: Conversation = {
     id: `convo-${app.id}`,
     applicationId: app.id,
@@ -217,8 +229,8 @@ function openConversationForApplication(
     listingTitle: listing?.title ?? "Listing",
     seekerId: app.seekerId,
     seekerName: app.seekerName,
-    landlordId: mockLandlord.id,
-    landlordName: `${mockLandlord.firstName} ${mockLandlord.lastName}`,
+    landlordId: landlord.id,
+    landlordName: landlord.name,
     createdAt: new Date().toISOString(),
   };
   return { conversations: [...conversations, conversation], conversation };
@@ -227,6 +239,7 @@ function openConversationForApplication(
 export const useDoorwayStore = create<DoorwayState>()(
   persist(
     (set, get) => ({
+      currentUser: null,
       role: null,
       locale: "en",
       darkMode: false,
@@ -249,6 +262,17 @@ export const useDoorwayStore = create<DoorwayState>()(
       lastSyncedAt: null,
       syncStatus: null,
 
+      loginUser: (user) =>
+        set({
+          currentUser: user,
+          role: user.role === "LANDLORD" ? "LANDLORD" : "SEEKER",
+        }),
+      logoutUser: () =>
+        set({
+          currentUser: null,
+          role: null,
+          onboardingComplete: false,
+        }),
       setRole: (role) => set({ role }),
       setSyncStatus: (syncStatus) => set({ syncStatus }),
       setLocale: (locale) => set({ locale }),
@@ -326,17 +350,18 @@ export const useDoorwayStore = create<DoorwayState>()(
       },
 
       swipe: (listingId, direction) => {
-        const { deck, likedListings, matches, listings, swipeHistory } = get();
+        const { deck, likedListings, matches, listings, swipeHistory, currentUser } = get();
         const listing = deck.find((l) => l.id === listingId);
         if (!listing) return;
 
+        const seeker = resolveSeeker(currentUser);
         const matchId = `match-${Date.now()}`;
         const newMatch: Match = {
           id: matchId,
-          seekerId: mockSeeker.id,
+          seekerId: seeker.id,
           listingId,
           status: direction === "right" ? "LIKED" : "PASSED",
-          actorId: mockSeeker.id,
+          actorId: seeker.id,
           createdAt: new Date().toISOString(),
         };
 
@@ -408,10 +433,10 @@ export const useDoorwayStore = create<DoorwayState>()(
       },
 
       submitApplication: (listingId, packet) => {
-        const showing = get()
-          .showings.filter(
-            (s) => s.listingId === listingId && s.seekerId === mockSeeker.id,
-          )
+        const { currentUser, showings } = get();
+        const seeker = resolveSeeker(currentUser);
+        const showing = showings
+          .filter((s) => s.listingId === listingId && s.seekerId === seeker.id)
           .find((s) => s.status === "ACCEPTED");
         if (!showing) return false;
 
@@ -419,8 +444,8 @@ export const useDoorwayStore = create<DoorwayState>()(
           id: `app-${Date.now()}`,
           listingId,
           showingId: showing.id,
-          seekerId: mockSeeker.id,
-          seekerName: `${mockSeeker.firstName} ${mockSeeker.lastName}`,
+          seekerId: seeker.id,
+          seekerName: `${seeker.firstName} ${seeker.lastName}`,
           packet,
           status: "SENT",
           sentAt: new Date().toISOString(),
@@ -442,32 +467,36 @@ export const useDoorwayStore = create<DoorwayState>()(
           notifications: pushNotification(
             get().notifications,
             "New application",
-            `${mockSeeker.firstName} ${mockSeeker.lastName} applied for ${listing?.title ?? "your listing"}. Review it in Applications.`,
+            `${seeker.firstName} ${seeker.lastName} applied for ${listing?.title ?? "your listing"}. Review it in Applications.`,
           ),
         });
         return true;
       },
 
-      canApply: (listingId) =>
-        get()
-          .showings.some(
-            (s) =>
-              s.listingId === listingId &&
-              s.seekerId === mockSeeker.id &&
-              s.status === "ACCEPTED",
-          ),
+      canApply: (listingId) => {
+        const seeker = resolveSeeker(get().currentUser);
+        return get().showings.some(
+          (s) =>
+            s.listingId === listingId &&
+            s.seekerId === seeker.id &&
+            s.status === "ACCEPTED",
+        );
+      },
 
-      getShowingForListing: (listingId) =>
-        get().showings.find(
-          (s) => s.listingId === listingId && s.seekerId === mockSeeker.id,
-        ),
+      getShowingForListing: (listingId) => {
+        const seeker = resolveSeeker(get().currentUser);
+        return get().showings.find(
+          (s) => s.listingId === listingId && s.seekerId === seeker.id,
+        );
+      },
 
       scheduleShowing: (listingId, date, time, contactMethod, contactValue) => {
+        const seeker = resolveSeeker(get().currentUser);
         const showing: Showing = {
           id: `showing-${Date.now()}`,
           listingId,
-          seekerId: mockSeeker.id,
-          seekerName: `${mockSeeker.firstName} ${mockSeeker.lastName}`,
+          seekerId: seeker.id,
+          seekerName: `${seeker.firstName} ${seeker.lastName}`,
           date,
           time,
           contactMethod,
@@ -489,6 +518,7 @@ export const useDoorwayStore = create<DoorwayState>()(
       acceptShowing: (id, message) => {
         const showing = get().showings.find((s) => s.id === id);
         if (!showing) return;
+        const seeker = resolveSeeker(get().currentUser);
         const updated = get().showings.map((s) =>
           s.id === id
             ? { ...s, status: "ACCEPTED" as const, landlordMessage: message }
@@ -497,7 +527,7 @@ export const useDoorwayStore = create<DoorwayState>()(
         set({
           showings: updated,
           lastConfirmedShowing:
-            showing.seekerId === mockSeeker.id
+            showing.seekerId === seeker.id
               ? { ...showing, status: "ACCEPTED", landlordMessage: message }
               : get().lastConfirmedShowing,
           notifications: pushNotification(
@@ -526,6 +556,7 @@ export const useDoorwayStore = create<DoorwayState>()(
       clearConfirmedShowing: () => set({ lastConfirmedShowing: null }),
 
       updateApplicationStatus: (id, status) => {
+        const { currentUser } = get();
         const app = get().applications.find((a) => a.id === id);
         if (!app) return;
 
@@ -535,14 +566,20 @@ export const useDoorwayStore = create<DoorwayState>()(
         let conversationId: string | undefined;
 
         if (status === "ACCEPTED") {
-          const opened = openConversationForApplication(app, listing, conversations);
+          const opened = openConversationForApplication(
+            app,
+            listing,
+            conversations,
+            currentUser,
+          );
           conversations = opened.conversations;
           conversationId = opened.conversation.id;
 
+          const landlord = resolveLandlordForListing(listing, currentUser);
           const welcome: ChatMessage = {
             id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             conversationId: opened.conversation.id,
-            senderId: mockLandlord.id,
+            senderId: landlord.id,
             senderRole: "LANDLORD",
             text: `Hi ${app.seekerName.split(" ")[0]}, your application for ${listing?.title ?? "the unit"} was accepted. Feel free to message me here if you have questions.`,
             sentAt: new Date().toISOString(),
@@ -583,16 +620,17 @@ export const useDoorwayStore = create<DoorwayState>()(
         const conversation = get().conversations.find((c) => c.id === conversationId);
         if (!conversation) return;
 
-        const senderId = role === "SEEKER" ? mockSeeker.id : mockLandlord.id;
-        const senderName =
+        const { currentUser } = get();
+        const actor =
           role === "SEEKER"
-            ? `${mockSeeker.firstName} ${mockSeeker.lastName}`
-            : `${mockLandlord.firstName} ${mockLandlord.lastName}`;
+            ? resolveSeeker(currentUser)
+            : resolveLandlord(currentUser);
+        const senderName = `${actor.firstName} ${actor.lastName}`;
 
         const msg: ChatMessage = {
           id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           conversationId,
-          senderId,
+          senderId: actor.id,
           senderRole: role,
           text,
           sentAt: new Date().toISOString(),
@@ -658,27 +696,29 @@ export const useDoorwayStore = create<DoorwayState>()(
       },
 
       saveListing: (input, status) => {
+        const landlord = resolveLandlord(get().currentUser);
         if (
           isDuplicateListing(get().listings, {
-            landlordId: mockLandlord.id,
+            landlordId: landlord.id,
             ...input,
           })
         ) {
           return null;
         }
-        const listing = inputToListing(input, status);
+        const listing = inputToListing(input, status, landlord.id);
         const updatedListings = [listing, ...get().listings];
         applyListingsUpdate(get, set, updatedListings);
         return listing;
       },
 
       updateListing: (id, input) => {
+        const landlord = resolveLandlord(get().currentUser);
         const existing = get().listings.find((l) => l.id === id);
         if (!existing) return false;
         if (
           isDuplicateListing(
             get().listings,
-            { landlordId: mockLandlord.id, ...input },
+            { landlordId: landlord.id, ...input },
             id,
           )
         ) {
@@ -690,7 +730,10 @@ export const useDoorwayStore = create<DoorwayState>()(
             : existing.images;
         const updatedListings = get().listings.map((l) =>
           l.id === id
-            ? { ...inputToListing(input, l.status, id, existing), images: keptImages.slice(0, 5) }
+            ? {
+                ...inputToListing(input, l.status, landlord.id, id, existing),
+                images: keptImages.slice(0, 5),
+              }
             : l,
         );
         applyListingsUpdate(get, set, updatedListings);
@@ -713,6 +756,7 @@ export const useDoorwayStore = create<DoorwayState>()(
 
       reset: () =>
         set({
+          currentUser: null,
           role: null,
           locale: "en",
           darkMode: false,
@@ -737,7 +781,7 @@ export const useDoorwayStore = create<DoorwayState>()(
     }),
     {
       name: "doorway-store",
-      version: 5,
+      version: 6,
       migrate: (persisted, version) => {
         const state = persisted as Partial<DoorwayState>;
         const existing = (state.listings ?? []).map((l) => {
@@ -784,6 +828,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             : c,
         );
         return {
+          currentUser: state.currentUser ?? null,
           role: state.role ?? null,
           locale: state.locale ?? "en",
           darkMode: state.darkMode ?? false,
@@ -812,6 +857,7 @@ export const useDoorwayStore = create<DoorwayState>()(
         };
       },
       partialize: (state) => ({
+        currentUser: state.currentUser,
         role: state.role,
         locale: state.locale,
         darkMode: state.darkMode,

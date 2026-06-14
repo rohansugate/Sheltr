@@ -5,19 +5,22 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { DoorwayHeader } from "@/components/layout/doorway-header";
 import { Button } from "@/components/ui/button";
+import { displayName, initials, resolveSeeker } from "@/lib/current-user";
+import { signOutAccount } from "@/lib/auth-client";
 import { LOCALE_LABELS, t } from "@/lib/i18n";
-import { mockSeeker } from "@/lib/mock-data";
 import { useDoorwayStore } from "@/lib/store";
-import type { Locale, UserRole } from "@/lib/types";
+import type { Locale } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
-const ROLES: { role: UserRole; label: string; href: string }[] = [
+const ROLES: { role: "SEEKER" | "LANDLORD"; label: string; href: string }[] = [
   { role: "SEEKER", label: "Seeker", href: "/discover" },
   { role: "LANDLORD", label: "Landlord", href: "/landlord" },
 ];
 
 export default function ProfilePage() {
   const router = useRouter();
+  const currentUser = useDoorwayStore((s) => s.currentUser);
+  const seeker = resolveSeeker(currentUser);
   const constraints = useDoorwayStore((s) => s.constraints);
   const likedListings = useDoorwayStore((s) => s.likedListings);
   const matches = useDoorwayStore((s) => s.matches);
@@ -42,38 +45,42 @@ export default function ProfilePage() {
       <div className="px-5 pb-2">
         <div className="mb-6 flex items-center gap-4">
           <div className="flex size-14 items-center justify-center rounded-full bg-foreground text-xl font-medium text-background">
-            {mockSeeker.firstName[0]}
-            {mockSeeker.lastName[0]}
+            {initials(seeker)}
           </div>
           <div>
-            <p className="font-medium">
-              {mockSeeker.firstName} {mockSeeker.lastName}
+            <p className="font-medium">{displayName(seeker)}</p>
+            <p className="text-sm text-muted-foreground">
+              {currentUser ? "Tenant account" : "Voucher Holder (demo)"}
             </p>
-            <p className="text-sm text-muted-foreground">Voucher Holder</p>
+            {currentUser?.email && (
+              <p className="text-xs text-muted-foreground">{currentUser.email}</p>
+            )}
           </div>
         </div>
       </div>
 
       <div className="flex flex-col gap-4 px-5 pb-8">
-        <section className="rounded-2xl border border-border p-4">
-          <h2 className="mb-3 font-bold">{t(locale, "switchRole")}</h2>
-          <div className="flex gap-2">
-            {ROLES.map((r) => (
-              <Button
-                key={r.role}
-                variant={role === r.role ? "primary" : "outline"}
-                size="sm"
-                className="flex-1"
-                onClick={() => {
-                  setRole(r.role);
-                  router.push(r.href);
-                }}
-              >
-                {r.label}
-              </Button>
-            ))}
-          </div>
-        </section>
+        {!currentUser && (
+          <section className="rounded-2xl border border-border p-4">
+            <h2 className="mb-3 font-bold">{t(locale, "switchRole")}</h2>
+            <div className="flex gap-2">
+              {ROLES.map((r) => (
+                <Button
+                  key={r.role}
+                  variant={role === r.role ? "primary" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => {
+                    setRole(r.role);
+                    router.push(r.href);
+                  }}
+                >
+                  {r.label}
+                </Button>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="rounded-2xl border border-border p-4">
           <h2 className="mb-3 font-bold">{t(locale, "darkMode")}</h2>
@@ -185,7 +192,12 @@ export default function ProfilePage() {
           variant="ghost"
           size="md"
           className="text-destructive"
-          onClick={() => {
+          onClick={async () => {
+            if (currentUser) {
+              await signOutAccount();
+              window.location.href = "/auth";
+              return;
+            }
             reset();
             window.location.href = "/";
           }}

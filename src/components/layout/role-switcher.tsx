@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { mockLandlord } from "@/lib/mock-data";
+import { displayName, resolveLandlord } from "@/lib/current-user";
 import { useDoorwayStore } from "@/lib/store";
 import type { UserRole } from "@/lib/types";
 
@@ -45,11 +45,14 @@ export function RoleSwitcher({ compact }: { compact?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const role = useDoorwayStore((s) => s.role);
+  const currentUser = useDoorwayStore((s) => s.currentUser);
   const setRole = useDoorwayStore((s) => s.setRole);
 
+  if (currentUser) return null;
   if (role !== "SEEKER" && role !== "LANDLORD") return null;
 
   const config = ROLE_CONFIG[role];
+  const landlord = resolveLandlord(currentUser);
 
   const switchRole = () => {
     const nextRole = config.otherRole as "SEEKER" | "LANDLORD";
@@ -76,7 +79,7 @@ export function RoleSwitcher({ compact }: { compact?: boolean }) {
         {role === "LANDLORD" && (
           <span className="text-muted-foreground">
             {" "}
-            · {mockLandlord.firstName} {mockLandlord.lastName}
+            · {displayName(landlord)}
           </span>
         )}
       </p>

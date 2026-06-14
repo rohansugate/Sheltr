@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { DoorwayHeader } from "@/components/layout/doorway-header";
 import { RoleSwitcher } from "@/components/layout/role-switcher";
-import { SyncStatusBadge } from "@/components/layout/sync-status-badge";
 import { DiscoverFilters } from "@/components/discover/discover-filters";
 import { SwipeDeck } from "@/components/discover/swipe-deck";
 import { TutorialOverlay } from "@/components/discover/tutorial-overlay";
@@ -36,7 +35,6 @@ export default function DiscoverPage() {
   return (
     <AppShell>
       <DoorwayHeader subtitle={`Section 8 near ${zip}`} />
-      <SyncStatusBadge />
       <RoleSwitcher compact />
 
       <div className="flex flex-1 flex-col px-5 pb-2">

@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { mockLandlord, mockSeeker } from "@/lib/mock-data";
+import { resolveLandlord, resolveSeeker } from "@/lib/current-user";
 import { useDoorwayStore } from "@/lib/store";
 import type { Conversation } from "@/lib/types";
 
@@ -19,10 +19,14 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
   const messages = useDoorwayStore((s) => s.messages);
   const notifications = useDoorwayStore((s) => s.notifications);
   const listings = useDoorwayStore((s) => s.listings);
+  const currentUser = useDoorwayStore((s) => s.currentUser);
   const sendMessage = useDoorwayStore((s) => s.sendMessage);
   const markConversationRead = useDoorwayStore((s) => s.markConversationRead);
 
-  const myId = role === "SEEKER" ? mockSeeker.id : mockLandlord.id;
+  const myId =
+    role === "SEEKER"
+      ? resolveSeeker(currentUser).id
+      : resolveLandlord(currentUser).id;
   const myConversations = conversations.filter((c) =>
     role === "SEEKER" ? c.seekerId === myId : c.landlordId === myId,
   );

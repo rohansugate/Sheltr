@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DoorwayHeader } from "@/components/layout/doorway-header";
 import { t } from "@/lib/i18n";
+import { homePathForUser } from "@/lib/auth-routing";
 import { useDoorwayStore } from "@/lib/store";
 import type { UserRole } from "@/lib/types";
 
@@ -45,23 +47,22 @@ function startLandlordDemo(router: ReturnType<typeof useRouter>) {
 
 export default function HomePage() {
   const router = useRouter();
-  const { setRole, onboardingComplete, locale, role } = useDoorwayStore();
+  const { onboardingComplete, locale, role, currentUser } = useDoorwayStore();
 
   useEffect(() => {
-    if (role === "SEEKER" && onboardingComplete) {
-      router.replace("/discover");
-    } else if (role === "LANDLORD") {
-      router.replace("/landlord");
+    if (!currentUser) {
+      if (role === "SEEKER" && onboardingComplete) {
+        router.replace("/discover");
+      } else if (role === "LANDLORD") {
+        router.replace("/landlord");
+      }
+      return;
     }
-  }, [role, onboardingComplete, router]);
+    router.replace(homePathForUser(currentUser, onboardingComplete));
+  }, [currentUser, role, onboardingComplete, router]);
 
-  const handleRoleSelect = (selectedRole: UserRole, href: string) => {
-    setRole(selectedRole);
-    if (selectedRole === "SEEKER" && onboardingComplete) {
-      router.push("/discover");
-    } else {
-      router.push(href);
-    }
+  const handleRoleSelect = (selectedRole: UserRole) => {
+    router.push(`/auth?role=${selectedRole}`);
   };
 
   return (
@@ -73,12 +74,24 @@ export default function HomePage() {
         <p className="mt-2 text-sm text-muted-foreground">{t(locale, "vsCompetitor")}</p>
       </div>
 
+      <div className="px-6 pb-4">
+        <Link
+          href="/auth"
+          className="block rounded-2xl bg-foreground px-4 py-4 text-center text-sm font-medium text-background transition-opacity hover:opacity-90"
+        >
+          Create account or log in
+        </Link>
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          Pick tenant or landlord when you sign up
+        </p>
+      </div>
+
       <div className="flex flex-1 flex-col gap-3 px-6 pb-4">
         {roles.map((item) => (
           <button
             key={item.role}
             type="button"
-            onClick={() => handleRoleSelect(item.role, item.href)}
+            onClick={() => handleRoleSelect(item.role)}
             className="group flex flex-col gap-1 rounded-2xl border border-border bg-card p-5 text-left transition-all hover:border-foreground/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
           >
             <span className="font-medium">{item.title}</span>
@@ -89,12 +102,12 @@ export default function HomePage() {
 
       <div className="flex flex-col gap-2 px-6 pb-8">
         <p className="text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Quick demo
+          Quick demo (no account)
         </p>
         <button
           type="button"
           onClick={() => startTenantDemo(router)}
-          className="rounded-2xl bg-foreground px-4 py-3.5 text-sm font-medium text-background transition-opacity hover:opacity-90"
+          className="rounded-2xl border border-border bg-card px-4 py-3.5 text-sm font-medium transition-colors hover:border-foreground/30"
         >
           Demo as tenant — swipe homes
         </button>

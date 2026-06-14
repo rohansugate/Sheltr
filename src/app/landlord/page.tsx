@@ -4,25 +4,26 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { LandlordShell } from "@/components/layout/landlord-shell";
 import { RoleSwitcher } from "@/components/layout/role-switcher";
-import { SyncStatusBadge } from "@/components/layout/sync-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ListingImage } from "@/components/ui/listing-image";
-import { mockLandlord } from "@/lib/mock-data";
+import { displayName, resolveLandlord } from "@/lib/current-user";
 import { useDoorwayStore } from "@/lib/store";
 import type { Listing } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
 export default function LandlordPage() {
   const listings = useDoorwayStore((s) => s.listings);
+  const currentUser = useDoorwayStore((s) => s.currentUser);
+  const landlord = resolveLandlord(currentUser);
   const applications = useDoorwayStore((s) => s.applications);
   const showings = useDoorwayStore((s) => s.showings);
   const deactivateListing = useDoorwayStore((s) => s.deactivateListing);
   const publishListing = useDoorwayStore((s) => s.publishListing);
 
   const landlordListings = useMemo(
-    () => listings.filter((l) => l.landlordId === mockLandlord.id),
-    [listings],
+    () => listings.filter((l) => l.landlordId === landlord.id),
+    [listings, landlord.id],
   );
 
   const landlordListingIds = useMemo(
@@ -44,14 +45,11 @@ export default function LandlordPage() {
 
   return (
     <LandlordShell>
-      <SyncStatusBadge />
       <RoleSwitcher />
       <header className="flex items-start justify-between px-5 pt-2">
         <div>
           <h1 className="text-2xl font-bold">My Listings</h1>
-          <p className="text-sm text-muted-foreground">
-            {mockLandlord.firstName} {mockLandlord.lastName}
-          </p>
+          <p className="text-sm text-muted-foreground">{displayName(landlord)}</p>
         </div>
         <Badge variant="outline">Pending Review</Badge>
       </header>
