@@ -24,6 +24,7 @@ import type {
   TenantSession,
   User,
   UserRole,
+  LandlordSession,
 } from "./types";
 import {
   DEFAULT_IMAGE,
@@ -44,6 +45,10 @@ import {
   resolveLandlordForListing,
   resolveSeeker,
 } from "./current-user";
+import {
+  markConversationNotificationsRead,
+  markLandlordApplicationNotificationsRead,
+} from "./unread-counts";
 
 interface DoorwayState {
   currentUser: User | null;
@@ -70,6 +75,11 @@ interface DoorwayState {
   lastLocalRevision: number;
   syncStatus: SyncStatus | null;
   tenantSessions: Record<string, TenantSession>;
+  landlordSessions: Record<string, LandlordSession>;
+  seenLandlordApplicationIds: string[];
+  seenLandlordShowingIds: string[];
+  seenSeekerApplicationIds: string[];
+  seenSeekerShowingIds: string[];
   setSyncStatus: (status: SyncStatus) => void;
   loginUser: (user: User) => void;
   logoutUser: () => void;
@@ -100,6 +110,8 @@ interface DoorwayState {
   updateApplicationStatus: (id: string, status: ApplicationStatus) => void;
   sendMessage: (conversationId: string, text: string, role: "SEEKER" | "LANDLORD") => void;
   markConversationRead: (conversationId: string, role: "SEEKER" | "LANDLORD") => void;
+  markLandlordApplicationsSeen: () => void;
+  markSeekerApplicationUpdatesSeen: () => void;
   ensureMessagingReady: () => void;
   applyRemoteSync: (payload: DemoSyncPayload) => void;
   markNotificationRead: (id: string) => void;
@@ -167,6 +179,26 @@ function freshTenantState(): Pick<
     deck: [],
     tutorialSeen: false,
     discoverFilters: { ...defaultDiscoverFilters },
+  };
+}
+
+function snapshotLandlordSession(state: {
+  seenLandlordApplicationIds: string[];
+  seenLandlordShowingIds: string[];
+}): LandlordSession {
+  return {
+    seenApplicationIds: state.seenLandlordApplicationIds,
+    seenShowingIds: state.seenLandlordShowingIds,
+  };
+}
+
+function freshLandlordSeenState(): Pick<
+  DoorwayState,
+  "seenLandlordApplicationIds" | "seenLandlordShowingIds"
+> {
+  return {
+    seenLandlordApplicationIds: [],
+    seenLandlordShowingIds: [],
   };
 }
 
@@ -472,19 +504,29 @@ export const useDoorwayStore = create<DoorwayState>()(
       lastLocalRevision: 0,
       syncStatus: null,
       tenantSessions: {},
+      landlordSessions: {},
+      seenLandlordApplicationIds: [],
+      seenLandlordShowingIds: [],
+      seenSeekerApplicationIds: [],
+      seenSeekerShowingIds: [],
 
       loginUser: (user) => {
         const state = get();
         const tenantSessions = { ...state.tenantSessions };
+        const landlordSessions = { ...state.landlordSessions };
 
         if (state.currentUser?.role === "SEEKER") {
           tenantSessions[state.currentUser.id] = snapshotTenantSession(state);
+        }
+        if (state.currentUser?.role === "LANDLORD") {
+          landlordSessions[state.currentUser.id] = snapshotLandlordSession(state);
         }
 
         const base = {
           currentUser: user,
           role: (user.role === "LANDLORD" ? "LANDLORD" : "SEEKER") as UserRole,
           tenantSessions,
+          landlordSessions,
         };
 
         if (user.role === "SEEKER") {
@@ -498,21 +540,36 @@ export const useDoorwayStore = create<DoorwayState>()(
           return;
         }
 
-        set(base);
+        const savedLandlord = landlordSessions[user.id];
+        set({
+          ...base,
+          ...(savedLandlord
+            ? {
+                seenLandlordApplicationIds: savedLandlord.seenApplicationIds,
+                seenLandlordShowingIds: savedLandlord.seenShowingIds,
+              }
+            : freshLandlordSeenState()),
+        });
       },
       logoutUser: () => {
         const state = get();
         const tenantSessions = { ...state.tenantSessions };
+        const landlordSessions = { ...state.landlordSessions };
 
         if (state.currentUser?.role === "SEEKER") {
           tenantSessions[state.currentUser.id] = snapshotTenantSession(state);
+        }
+        if (state.currentUser?.role === "LANDLORD") {
+          landlordSessions[state.currentUser.id] = snapshotLandlordSession(state);
         }
 
         set({
           currentUser: null,
           role: null,
           tenantSessions,
+          landlordSessions,
           ...freshTenantState(),
+          ...freshLandlordSeenState(),
         });
       },
       setRole: (role) => set({ role }),
@@ -705,7 +762,8 @@ export const useDoorwayStore = create<DoorwayState>()(
         };
 
         const listing = get().listings.find((l) => l.id === listingId);
-        const landlord = resolveLandlordForListing(listing, get().currentUser);
+        const landlord = resolveLandlordForListing(listing, null);
+        const landlordId = listing?.landlordId ?? landlord.id;
         const updatedListings = get().listings.map((l) =>
           l.id === listingId
             ? { ...l, analytics: { ...l.analytics, applications: l.analytics.applications + 1 } }
@@ -722,7 +780,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             "New application",
             `${seeker.firstName} ${seeker.lastName} applied for ${listing?.title ?? "your listing"}. Review it in Applications.`,
             {
-              landlordId: landlord.id,
+              landlordId,
               fromName: `${seeker.firstName} ${seeker.lastName}`,
             },
           ),
@@ -762,7 +820,8 @@ export const useDoorwayStore = create<DoorwayState>()(
           createdAt: new Date().toISOString(),
         };
         const listing = get().listings.find((l) => l.id === listingId);
-        const landlord = resolveLandlordForListing(listing, get().currentUser);
+        const landlord = resolveLandlordForListing(listing, null);
+        const landlordId = listing?.landlordId ?? landlord.id;
         set({
           showings: [...get().showings, showing],
           notifications: pushNotification(
@@ -770,7 +829,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             "Showing requested",
             `${seeker.firstName} ${seeker.lastName} requested a showing for ${listing?.title ?? "your listing"} on ${date} at ${time}.`,
             {
-              landlordId: landlord.id,
+              landlordId,
               fromName: `${seeker.firstName} ${seeker.lastName}`,
             },
           ),
@@ -1033,10 +1092,93 @@ export const useDoorwayStore = create<DoorwayState>()(
       },
 
       markConversationRead: (conversationId, role) => {
+        const { currentUser, conversations, messages, notifications } = get();
+        const myId =
+          role === "SEEKER"
+            ? resolveSeeker(currentUser).id
+            : resolveLandlord(currentUser).id;
+        const thread = messages
+          .filter((m) => m.conversationId === conversationId)
+          .sort((a, b) => b.sentAt.localeCompare(a.sentAt));
+        const latestIncoming = thread.find((m) => m.senderRole !== role)?.sentAt;
+        const readAt = latestIncoming ?? new Date().toISOString();
+
         set({
-          notifications: get().notifications.map((n) =>
-            n.conversationId === conversationId ? { ...n, read: true } : n,
+          conversations: conversations.map((c) =>
+            c.id === conversationId
+              ? {
+                  ...c,
+                  seekerLastReadAt:
+                    role === "SEEKER" ? readAt : c.seekerLastReadAt,
+                  landlordLastReadAt:
+                    role === "LANDLORD" ? readAt : c.landlordLastReadAt,
+                }
+              : c,
           ),
+          notifications: markConversationNotificationsRead(
+            notifications,
+            conversationId,
+            role,
+            myId,
+          ),
+        });
+      },
+
+      markLandlordApplicationsSeen: () => {
+        const landlord = resolveLandlord(get().currentUser);
+        const listingIds = new Set(
+          get()
+            .listings.filter((l) => l.landlordId === landlord.id)
+            .map((l) => l.id),
+        );
+        const appIds = get()
+          .applications.filter((a) => listingIds.has(a.listingId))
+          .map((a) => a.id);
+        const showingIds = get()
+          .showings.filter((s) => listingIds.has(s.listingId))
+          .map((s) => s.id);
+
+        set({
+          seenLandlordApplicationIds: [
+            ...new Set([...get().seenLandlordApplicationIds, ...appIds]),
+          ],
+          seenLandlordShowingIds: [
+            ...new Set([...get().seenLandlordShowingIds, ...showingIds]),
+          ],
+          landlordSessions: {
+            ...get().landlordSessions,
+            [landlord.id]: {
+              seenApplicationIds: [
+                ...new Set([...get().seenLandlordApplicationIds, ...appIds]),
+              ],
+              seenShowingIds: [
+                ...new Set([...get().seenLandlordShowingIds, ...showingIds]),
+              ],
+            },
+          },
+          notifications: markLandlordApplicationNotificationsRead(
+            get().notifications,
+            landlord.id,
+          ),
+        });
+      },
+
+      markSeekerApplicationUpdatesSeen: () => {
+        const seeker = resolveSeeker(get().currentUser);
+        const appIds = get()
+          .applications.filter((a) => a.seekerId === seeker.id)
+          .map((a) => a.id);
+        const showingIds = get()
+          .showings.filter((s) => s.seekerId === seeker.id)
+          .map((s) => s.id);
+
+        set({
+          seenSeekerApplicationIds: [
+            ...new Set([...get().seenSeekerApplicationIds, ...appIds]),
+          ],
+          seenSeekerShowingIds: [
+            ...new Set([...get().seenSeekerShowingIds, ...showingIds]),
+          ],
         });
       },
 
@@ -1192,7 +1334,7 @@ export const useDoorwayStore = create<DoorwayState>()(
     }),
     {
       name: "doorway-store",
-      version: 7,
+      version: 9,
       migrate: (persisted, version) => {
         const state = persisted as Partial<DoorwayState>;
         const existing = (state.listings ?? []).map((l) => {
@@ -1260,6 +1402,19 @@ export const useDoorwayStore = create<DoorwayState>()(
           });
         }
 
+        const landlordSessions: Record<string, LandlordSession> = {
+          ...(state.landlordSessions ?? {}),
+        };
+        if (
+          state.currentUser?.role === "LANDLORD" &&
+          !landlordSessions[state.currentUser.id]
+        ) {
+          landlordSessions[state.currentUser.id] = {
+            seenApplicationIds: state.seenLandlordApplicationIds ?? [],
+            seenShowingIds: state.seenLandlordShowingIds ?? [],
+          };
+        }
+
         return {
           currentUser: state.currentUser ?? null,
           role: state.role ?? null,
@@ -1288,6 +1443,11 @@ export const useDoorwayStore = create<DoorwayState>()(
           messages: state.messages ?? [],
           notifications: state.notifications ?? [],
           tenantSessions,
+          landlordSessions,
+          seenLandlordApplicationIds: state.seenLandlordApplicationIds ?? [],
+          seenLandlordShowingIds: state.seenLandlordShowingIds ?? [],
+          seenSeekerApplicationIds: state.seenSeekerApplicationIds ?? [],
+          seenSeekerShowingIds: state.seenSeekerShowingIds ?? [],
         };
       },
       partialize: (state) => ({
@@ -1305,6 +1465,11 @@ export const useDoorwayStore = create<DoorwayState>()(
         matches: state.matches,
         swipeHistory: state.swipeHistory,
         tenantSessions: state.tenantSessions,
+        landlordSessions: state.landlordSessions,
+        seenLandlordApplicationIds: state.seenLandlordApplicationIds,
+        seenLandlordShowingIds: state.seenLandlordShowingIds,
+        seenSeekerApplicationIds: state.seenSeekerApplicationIds,
+        seenSeekerShowingIds: state.seenSeekerShowingIds,
         applications: state.applications,
         showings: state.showings,
         conversations: state.conversations,

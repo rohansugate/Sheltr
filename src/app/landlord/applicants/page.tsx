@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { LandlordShell } from "@/components/layout/landlord-shell";
 import { RoleSwitcher } from "@/components/layout/role-switcher";
@@ -21,7 +21,14 @@ export default function LandlordApplicantsPage() {
   const acceptShowing = useDoorwayStore((s) => s.acceptShowing);
   const declineShowing = useDoorwayStore((s) => s.declineShowing);
   const updateApplicationStatus = useDoorwayStore((s) => s.updateApplicationStatus);
+  const markLandlordApplicationsSeen = useDoorwayStore(
+    (s) => s.markLandlordApplicationsSeen,
+  );
   const [showingMessages, setShowingMessages] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    markLandlordApplicationsSeen();
+  }, [markLandlordApplicationsSeen]);
 
   const landlordListingIds = useMemo(
     () => new Set(listings.filter((l) => l.landlordId === landlord.id).map((l) => l.id)),

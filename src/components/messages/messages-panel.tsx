@@ -6,31 +6,21 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { resolveLandlord, resolveSeeker } from "@/lib/current-user";
-import { filterNotificationsForUser } from "@/lib/notifications";
 import { useDoorwayStore } from "@/lib/store";
+import {
+  conversationForUser,
+  countUnreadInConversation,
+} from "@/lib/unread-counts";
 import type { Conversation } from "@/lib/types";
 
 interface MessagesPanelProps {
   role: "SEEKER" | "LANDLORD";
 }
 
-function conversationForUser(
-  convo: Conversation,
-  role: "SEEKER" | "LANDLORD",
-  myId: string,
-  listings: { id: string; landlordId?: string }[],
-) {
-  if (role === "SEEKER") return convo.seekerId === myId;
-  if (convo.landlordId === myId) return true;
-  const listing = listings.find((l) => l.id === convo.listingId);
-  return listing?.landlordId === myId;
-}
-
 export function MessagesPanel({ role }: MessagesPanelProps) {
   const searchParams = useSearchParams();
   const conversations = useDoorwayStore((s) => s.conversations);
   const messages = useDoorwayStore((s) => s.messages);
-  const notifications = useDoorwayStore((s) => s.notifications);
   const listings = useDoorwayStore((s) => s.listings);
   const currentUser = useDoorwayStore((s) => s.currentUser);
   const sendMessage = useDoorwayStore((s) => s.sendMessage);
@@ -78,10 +68,16 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
     threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [thread.length, activeId]);
 
-  const unreadFor = (conversationId: string) =>
-    filterNotificationsForUser(notifications, role, currentUser).some(
-      (n) => n.conversationId === conversationId && !n.read,
-    );
+  useEffect(() => {
+    if (!active) return;
+    markConversationRead(active.id, role);
+  }, [active, thread.length, role, markConversationRead]);
+
+  const unreadFor = (conversationId: string) => {
+    const convo = myConversations.find((c) => c.id === conversationId);
+    if (!convo) return 0;
+    return countUnreadInConversation(convo, messages, role);
+  };
 
   const openConversation = (convo: Conversation) => {
     setActiveId(convo.id);
@@ -204,8 +200,10 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-medium">{otherName}</p>
                     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      {unread && (
-                        <span className="size-2 rounded-full bg-sky-500" aria-label="Unread" />
+                      {unread > 0 && (
+                        <span className="flex min-w-5 items-center justify-center rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                          {unread > 9 ? "9+" : unread}
+                        </span>
                       )}
                       Chat
                     </span>

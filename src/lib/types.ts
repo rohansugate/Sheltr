@@ -154,6 +154,8 @@ export interface Conversation {
   landlordId: string;
   landlordName: string;
   createdAt: string;
+  seekerLastReadAt?: string;
+  landlordLastReadAt?: string;
 }
 
 export interface ChatMessage {
@@ -210,4 +212,10 @@ export interface TenantSession {
   swipeHistory: SwipeAction[];
   tutorialSeen: boolean;
   discoverFilters: DiscoverFilters;
+}
+
+/** Per-landlord seen application/showing ids (keyed by user id in the store). */
+export interface LandlordSession {
+  seenApplicationIds: string[];
+  seenShowingIds: string[];
 }

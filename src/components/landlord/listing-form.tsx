@@ -68,7 +68,16 @@ export function ListingForm({
     existing?.images ?? [],
   );
   const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [showPhotoPicker, setShowPhotoPicker] = useState(false);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const libraryRef = useRef<HTMLInputElement>(null);
+
+  const onPhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await handlePhoto(file);
+    e.target.value = "";
+    setShowPhotoPicker(false);
+  };
 
   const neighborhoods = useMemo(
     () => neighborhoodsForZip(form.zipCode),
@@ -154,25 +163,71 @@ export function ListingForm({
           {photos.length < 5 && (
             <button
               type="button"
-              onClick={() => fileRef.current?.click()}
-              className="flex size-20 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-border text-xs text-muted-foreground"
+              onClick={() => setShowPhotoPicker(true)}
+              disabled={uploading}
+              className="flex size-20 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-border text-xs text-muted-foreground disabled:opacity-50"
             >
               {uploading ? "…" : "+ Add"}
             </button>
           )}
         </div>
         <input
-          ref={fileRef}
+          ref={cameraRef}
           type="file"
           accept="image/*"
           capture="environment"
           className="sr-only"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handlePhoto(file);
-            if (fileRef.current) fileRef.current.value = "";
-          }}
+          onChange={onPhotoFile}
         />
+        <input
+          ref={libraryRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          onChange={onPhotoFile}
+        />
+        {showPhotoPicker && (
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+            onClick={() => setShowPhotoPicker(false)}
+          >
+            <div
+              className="w-full max-w-md overflow-hidden rounded-2xl bg-background shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="border-b border-border px-4 py-3 text-center text-sm font-semibold">
+                Add listing photo
+              </p>
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 border-b border-border px-4 py-4 text-left text-sm font-medium hover:bg-muted"
+                onClick={() => cameraRef.current?.click()}
+              >
+                <span className="text-lg" aria-hidden>
+                  📷
+                </span>
+                Take Photo
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 border-b border-border px-4 py-4 text-left text-sm font-medium hover:bg-muted"
+                onClick={() => libraryRef.current?.click()}
+              >
+                <span className="text-lg" aria-hidden>
+                  🖼️
+                </span>
+                Choose from Photos
+              </button>
+              <button
+                type="button"
+                className="w-full px-4 py-4 text-center text-sm font-medium text-muted-foreground hover:bg-muted"
+                onClick={() => setShowPhotoPicker(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <Input

@@ -2,8 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { filterNotificationsForUser } from "@/lib/notifications";
+import { resolveSeeker } from "@/lib/current-user";
 import { useDoorwayStore } from "@/lib/store";
+import {
+  countUnreadMessages,
+  countUnreadSeekerApplicationUpdates,
+} from "@/lib/unread-counts";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -15,16 +19,40 @@ interface NavItem {
 
 export function BottomNav() {
   const pathname = usePathname();
-  const notifications = useDoorwayStore((s) => s.notifications);
+  const conversations = useDoorwayStore((s) => s.conversations);
+  const messages = useDoorwayStore((s) => s.messages);
+  const listings = useDoorwayStore((s) => s.listings);
+  const applications = useDoorwayStore((s) => s.applications);
+  const showings = useDoorwayStore((s) => s.showings);
   const currentUser = useDoorwayStore((s) => s.currentUser);
-  const role = useDoorwayStore((s) => s.role);
   const likedListings = useDoorwayStore((s) => s.likedListings);
+  const seenSeekerApplicationIds = useDoorwayStore((s) => s.seenSeekerApplicationIds);
+  const seenSeekerShowingIds = useDoorwayStore((s) => s.seenSeekerShowingIds);
 
-  const unreadMessages = filterNotificationsForUser(
-    notifications,
-    role,
+  const seekerId = resolveSeeker(currentUser).id;
+
+  const unreadMessages = countUnreadMessages(
+    conversations,
+    messages,
+    listings,
+    "SEEKER",
     currentUser,
-  ).filter((n) => n.conversationId && !n.read).length;
+  );
+
+  const unseenApplicationUpdates = countUnreadSeekerApplicationUpdates(
+    applications,
+    showings,
+    seekerId,
+    seenSeekerApplicationIds,
+    seenSeekerShowingIds,
+  );
+
+  const savedBadge =
+    unseenApplicationUpdates > 0
+      ? unseenApplicationUpdates
+      : likedListings.length > 0
+        ? likedListings.length
+        : undefined;
 
   const seekerNav: NavItem[] = [
     {
@@ -39,7 +67,7 @@ export function BottomNav() {
     {
       href: "/matches",
       label: "Saved",
-      badge: likedListings.length,
+      badge: savedBadge,
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="size-5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
@@ -90,7 +118,7 @@ export function BottomNav() {
             >
               <span className="relative">
                 {item.icon}
-                {item.badge ? (
+                {item.badge && item.badge > 0 ? (
                   <span className="absolute -right-2 -top-1 flex size-4 items-center justify-center rounded-full bg-foreground text-[9px] font-bold text-background">
                     {item.badge > 9 ? "9+" : item.badge}
                   </span>

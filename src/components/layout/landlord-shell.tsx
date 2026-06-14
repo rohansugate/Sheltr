@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { filterNotificationsForUser } from "@/lib/notifications";
+import { resolveLandlord } from "@/lib/current-user";
 import { useDoorwayStore } from "@/lib/store";
+import {
+  countUnreadLandlordApplications,
+  countUnreadMessages,
+  getLandlordListingIds,
+} from "@/lib/unread-counts";
 import { cn } from "@/lib/utils";
 
 const landlordNav = [
@@ -47,22 +52,38 @@ const landlordNav = [
 
 export function LandlordShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const notifications = useDoorwayStore((s) => s.notifications);
+  const conversations = useDoorwayStore((s) => s.conversations);
+  const messages = useDoorwayStore((s) => s.messages);
+  const listings = useDoorwayStore((s) => s.listings);
   const currentUser = useDoorwayStore((s) => s.currentUser);
-  const role = useDoorwayStore((s) => s.role);
   const applications = useDoorwayStore((s) => s.applications);
   const showings = useDoorwayStore((s) => s.showings);
+  const seenLandlordApplicationIds = useDoorwayStore(
+    (s) => s.seenLandlordApplicationIds,
+  );
+  const seenLandlordShowingIds = useDoorwayStore((s) => s.seenLandlordShowingIds);
 
-  const unreadMessages = filterNotificationsForUser(
-    notifications,
-    role,
+  const landlord = resolveLandlord(currentUser);
+  const landlordListingIds = getLandlordListingIds(landlord.id, listings);
+
+  const unreadMessages = countUnreadMessages(
+    conversations,
+    messages,
+    listings,
+    "LANDLORD",
     currentUser,
-  ).filter((n) => n.conversationId && !n.read).length;
-  const pendingApps = applications.filter((a) => !["DECLINED", "LEASE_SIGNED"].includes(a.status)).length;
-  const pendingShowings = showings.filter((s) => s.status === "REQUESTED").length;
+  );
+
+  const unreadApplications = countUnreadLandlordApplications(
+    applications,
+    showings,
+    landlordListingIds,
+    seenLandlordApplicationIds,
+    seenLandlordShowingIds,
+  );
 
   const badges: Record<string, number> = {
-    "/landlord/applicants": pendingApps + pendingShowings,
+    "/landlord/applicants": unreadApplications,
     "/landlord/messages": unreadMessages,
   };
 
@@ -101,7 +122,7 @@ export function LandlordShell({ children }: { children: React.ReactNode }) {
                 >
                   <span className="relative">
                     {item.icon}
-                    {badge ? (
+                    {badge > 0 ? (
                       <span className="absolute -right-2 -top-1 flex size-4 items-center justify-center rounded-full bg-foreground text-[9px] font-bold text-background">
                         {badge > 9 ? "9+" : badge}
                       </span>

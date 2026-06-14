@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { DoorwayHeader } from "@/components/layout/doorway-header";
@@ -23,9 +23,16 @@ export default function MatchesPage() {
   const canApply = useDoorwayStore((s) => s.canApply);
   const getShowingForListing = useDoorwayStore((s) => s.getShowingForListing);
   const applications = useDoorwayStore((s) => s.applications);
+  const markSeekerApplicationUpdatesSeen = useDoorwayStore(
+    (s) => s.markSeekerApplicationUpdatesSeen,
+  );
   const [tab, setTab] = useState<"list" | "map" | "compare">("list");
   const [selected, setSelected] = useState<Listing | null>(null);
   const [compareIds, setCompareIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    markSeekerApplicationUpdatesSeen();
+  }, [markSeekerApplicationUpdatesSeen]);
 
   const getAppStatus = (listingId: string) =>
     applications.find((a) => a.listingId === listingId)?.status;

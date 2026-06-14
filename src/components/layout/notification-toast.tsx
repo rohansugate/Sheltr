@@ -40,6 +40,7 @@ export function NotificationToast() {
 
     seen.current.add(next.id);
     setActiveId(next.id);
+    useDoorwayStore.getState().markNotificationRead(next.id);
   }, [mine, role]);
 
   useEffect(() => {
