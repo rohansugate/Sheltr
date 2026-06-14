@@ -7,7 +7,6 @@ import { DoorwayHeader } from "@/components/layout/doorway-header";
 import { Button } from "@/components/ui/button";
 import { displayName, initials, resolveSeeker } from "@/lib/current-user";
 import { signOutAccount, switchAccount } from "@/lib/auth-client";
-import { filterNotificationsForUser } from "@/lib/notifications";
 import { LOCALE_LABELS, t } from "@/lib/i18n";
 import { useDoorwayStore } from "@/lib/store";
 import type { Locale } from "@/lib/types";
@@ -25,7 +24,6 @@ export default function ProfilePage() {
   const constraints = useDoorwayStore((s) => s.constraints);
   const likedListings = useDoorwayStore((s) => s.likedListings);
   const matches = useDoorwayStore((s) => s.matches);
-  const notifications = useDoorwayStore((s) => s.notifications);
   const locale = useDoorwayStore((s) => s.locale);
   const setLocale = useDoorwayStore((s) => s.setLocale);
   const a11y = useDoorwayStore((s) => s.a11y);
@@ -34,15 +32,7 @@ export default function ProfilePage() {
   const darkMode = useDoorwayStore((s) => s.darkMode);
   const setA11y = useDoorwayStore((s) => s.setA11y);
   const setRole = useDoorwayStore((s) => s.setRole);
-  const markNotificationRead = useDoorwayStore((s) => s.markNotificationRead);
   const reset = useDoorwayStore((s) => s.reset);
-
-  const myNotifications = filterNotificationsForUser(
-    notifications,
-    role,
-    currentUser,
-  );
-  const unread = myNotifications.filter((n) => !n.read).length;
 
   return (
     <AppShell>
@@ -141,41 +131,6 @@ export default function ProfilePage() {
             <Toggle label={t(locale, "highContrast")} checked={a11y.highContrast} onChange={(v) => setA11y({ highContrast: v })} />
             <Toggle label={t(locale, "reduceMotion")} checked={a11y.reduceMotion} onChange={(v) => setA11y({ reduceMotion: v })} />
           </div>
-        </section>
-
-        <section className="rounded-2xl border border-border p-4">
-          <h2 className="mb-3 font-bold">
-            {t(locale, "notifications")} {unread > 0 && `(${unread})`}
-          </h2>
-          {myNotifications.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No notifications yet</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {myNotifications.slice(0, 5).map((n) => (
-                <li
-                  key={n.id}
-                  className={`rounded-lg p-3 text-sm ${n.read ? "bg-muted" : "bg-primary/10"}`}
-                >
-                  <p className="font-semibold">
-                    {n.fromName ? `${n.title} · ${n.fromName}` : n.title}
-                  </p>
-                  <p className="text-muted-foreground">{n.message}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    via {n.channels.join(", ")}
-                  </p>
-                  {!n.read && (
-                    <button
-                      type="button"
-                      className="mt-1 text-xs font-semibold text-primary"
-                      onClick={() => markNotificationRead(n.id)}
-                    >
-                      Mark read
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
         </section>
 
         <section className="rounded-2xl border border-border p-4">

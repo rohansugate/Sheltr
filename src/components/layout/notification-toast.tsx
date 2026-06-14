@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   filterNotificationsForUser,
-  messagesHref,
+  notificationHref,
 } from "@/lib/notifications";
 import { useDoorwayStore } from "@/lib/store";
 
@@ -35,14 +35,7 @@ export function NotificationToast() {
   useEffect(() => {
     if (!role || (role !== "SEEKER" && role !== "LANDLORD")) return;
 
-    const next = mine.find(
-      (n) =>
-        !n.read &&
-        !seen.current.has(n.id) &&
-        (n.title.toLowerCase().includes("accepted") ||
-          n.title.toLowerCase().includes("message")),
-    );
-
+    const next = mine.find((n) => !n.read && !seen.current.has(n.id));
     if (!next) return;
 
     seen.current.add(next.id);
@@ -81,12 +74,22 @@ export function NotificationToast() {
 
   if (!active || !role || (role !== "SEEKER" && role !== "LANDLORD")) return null;
 
-  const href = messagesHref(role, active.conversationId);
+  const href = notificationHref(role, active);
   const headline = active.fromName
     ? `${active.title.replace("!", "")} — ${active.fromName}`
     : active.title;
 
   const opacity = Math.max(0, 1 + dragY / SWIPE_DISMISS_PX);
+
+  const content = (
+    <>
+      <p className="text-sm font-bold">{headline}</p>
+      <p className="mt-1 text-sm opacity-95">{active.message}</p>
+      {href && (
+        <p className="mt-2 text-xs font-semibold underline">Tap to open</p>
+      )}
+    </>
+  );
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-0 z-[80] flex justify-center px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
@@ -102,17 +105,21 @@ export function NotificationToast() {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <Link
-          href={href}
-          onClick={(e) => {
-            if (dragged.current) e.preventDefault();
-          }}
-          className="block rounded-2xl border border-primary/30 bg-primary px-4 py-3 text-primary-foreground shadow-lg"
-        >
-          <p className="text-sm font-bold">{headline}</p>
-          <p className="mt-1 text-sm opacity-95">{active.message}</p>
-          <p className="mt-2 text-xs font-semibold underline">Tap to open</p>
-        </Link>
+        {href ? (
+          <Link
+            href={href}
+            onClick={(e) => {
+              if (dragged.current) e.preventDefault();
+            }}
+            className="block rounded-2xl border border-primary/30 bg-primary px-4 py-3 text-primary-foreground shadow-lg"
+          >
+            {content}
+          </Link>
+        ) : (
+          <div className="rounded-2xl border border-primary/30 bg-primary px-4 py-3 text-primary-foreground shadow-lg">
+            {content}
+          </div>
+        )}
       </div>
     </div>
   );

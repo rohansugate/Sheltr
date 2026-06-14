@@ -44,3 +44,15 @@ export function messagesHref(
   const base = role === "LANDLORD" ? "/landlord/messages" : "/messages";
   return conversationId ? `${base}?conversationId=${conversationId}` : base;
 }
+
+export function notificationHref(
+  role: "SEEKER" | "LANDLORD",
+  notification: Notification,
+) {
+  if (notification.conversationId) {
+    return messagesHref(role, notification.conversationId);
+  }
+  if (role === "LANDLORD") return "/landlord/applicants";
+  if (notification.title.toLowerCase().includes("showing")) return "/matches";
+  return null;
+}
