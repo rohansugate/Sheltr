@@ -75,6 +75,7 @@ export interface Listing {
   source: ListingSource;
   status: ListingStatus;
   analytics: ListingAnalytics;
+  updatedAt?: string;
 }
 
 export interface ListingInput {
@@ -138,6 +139,8 @@ export interface Notification {
   seekerId?: string;
   /** Landlord who should see this alert (demo sync). */
   landlordId?: string;
+  /** Display name for the person who triggered the notification. */
+  fromName?: string;
 }
 
 export interface Conversation {

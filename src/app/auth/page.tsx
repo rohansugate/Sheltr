@@ -116,7 +116,7 @@ export default function AuthPage() {
       }
 
       if (!data.exists) {
-        setError("No account found in Doorway. Create a new account below.");
+        setError("No account found in Sheltr. Create a new account below.");
         setMode("signup");
         return;
       }
@@ -180,10 +180,10 @@ export default function AuthPage() {
         <p className="font-serif text-xl leading-snug">
           {isSwitching
             ? "Sign in or create another account"
-            : "Join Doorway as a tenant or landlord"}
+            : "Join Sheltr as a tenant or landlord"}
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Accounts are verified against Doorway&apos;s database. Passwords are
+          Accounts are verified against Sheltr&apos;s database. Passwords are
           stored securely by Supabase when you sign up.
         </p>
       </div>

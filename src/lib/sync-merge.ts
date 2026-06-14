@@ -116,16 +116,20 @@ function mergeNotifications(a: Notification[], b: Notification[]): Notification[
 
 function mergeListings(a: Listing[], b: Listing[]): Listing[] {
   const map = new Map<string, Listing>();
-  for (const listing of a) map.set(listing.id, listing);
-  for (const listing of b) {
+  for (const listing of [...a, ...b]) {
     const existing = map.get(listing.id);
     if (!existing) {
       map.set(listing.id, listing);
       continue;
     }
+    const keep = pickNewer(
+      { ...existing, updatedAt: existing.updatedAt },
+      { ...listing, updatedAt: listing.updatedAt },
+    );
     map.set(listing.id, {
       ...existing,
       ...listing,
+      ...keep,
       analytics: {
         views: Math.max(existing.analytics.views, listing.analytics.views),
         saves: Math.max(existing.analytics.saves, listing.analytics.saves),

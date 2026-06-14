@@ -60,7 +60,7 @@ export default function HomeScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Doorway</Text>
+        <Text style={styles.title}>Sheltr</Text>
         <Text style={styles.subtitle}>Development Build</Text>
       </View>
 
@@ -93,7 +93,7 @@ export default function HomeScreen() {
           <Pressable style={styles.recentRow} onPress={() => connect(recent)}>
             <View style={styles.dot} />
             <View>
-              <Text style={styles.recentTitle}>Doorway</Text>
+              <Text style={styles.recentTitle}>Sheltr</Text>
               <Text style={styles.recentUrl}>{recent}</Text>
             </View>
           </Pressable>

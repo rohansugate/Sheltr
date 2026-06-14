@@ -1,4 +1,4 @@
-# Doorway
+# Sheltr
 
 Section 8 housing discovery app — swipe listings, schedule showings, apply, and message landlords. Built for hackathon demo with tenant + landlord flows and two-phone sync.
 
@@ -49,7 +49,7 @@ Copy names from `.env.example`. Without Redis, sync falls back to in-memory (sin
 
 - **Safari:** open your Vercel URL (easiest).
 - **Capacitor:** `CAPACITOR_SERVER_URL=https://your-app.vercel.app npx cap sync ios` then Xcode Run.
-- **Expo shell:** enter Vercel URL in the Doorway dev client.
+- **Expo shell:** enter Vercel URL in the Sheltr dev client.
 
 ## Scripts
 

@@ -7,6 +7,7 @@ import { DoorwayHeader } from "@/components/layout/doorway-header";
 import { Button } from "@/components/ui/button";
 import { displayName, initials, resolveSeeker } from "@/lib/current-user";
 import { signOutAccount, switchAccount } from "@/lib/auth-client";
+import { filterNotificationsForUser } from "@/lib/notifications";
 import { LOCALE_LABELS, t } from "@/lib/i18n";
 import { useDoorwayStore } from "@/lib/store";
 import type { Locale } from "@/lib/types";
@@ -36,7 +37,12 @@ export default function ProfilePage() {
   const markNotificationRead = useDoorwayStore((s) => s.markNotificationRead);
   const reset = useDoorwayStore((s) => s.reset);
 
-  const unread = notifications.filter((n) => !n.read).length;
+  const myNotifications = filterNotificationsForUser(
+    notifications,
+    role,
+    currentUser,
+  );
+  const unread = myNotifications.filter((n) => !n.read).length;
 
   return (
     <AppShell>
@@ -141,16 +147,18 @@ export default function ProfilePage() {
           <h2 className="mb-3 font-bold">
             {t(locale, "notifications")} {unread > 0 && `(${unread})`}
           </h2>
-          {notifications.length === 0 ? (
+          {myNotifications.length === 0 ? (
             <p className="text-sm text-muted-foreground">No notifications yet</p>
           ) : (
             <ul className="flex flex-col gap-2">
-              {notifications.slice(0, 5).map((n) => (
+              {myNotifications.slice(0, 5).map((n) => (
                 <li
                   key={n.id}
                   className={`rounded-lg p-3 text-sm ${n.read ? "bg-muted" : "bg-primary/10"}`}
                 >
-                  <p className="font-semibold">{n.title}</p>
+                  <p className="font-semibold">
+                    {n.fromName ? `${n.title} · ${n.fromName}` : n.title}
+                  </p>
                   <p className="text-muted-foreground">{n.message}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     via {n.channels.join(", ")}

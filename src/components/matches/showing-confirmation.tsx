@@ -12,7 +12,7 @@ export function ShowingConfirmation() {
 
   if (!showing) return null;
 
-  const calUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Doorway+Showing&dates=${showing.date.replace(/-/g, "")}T${showing.time.replace(":", "")}00/${showing.date.replace(/-/g, "")}T${showing.time.replace(":", "")}00`;
+  const calUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Sheltr+Showing&dates=${showing.date.replace(/-/g, "")}T${showing.time.replace(":", "")}00/${showing.date.replace(/-/g, "")}T${showing.time.replace(":", "")}00`;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-6">

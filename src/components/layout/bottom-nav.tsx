@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { filterNotificationsForUser } from "@/lib/notifications";
 import { useDoorwayStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -15,9 +16,15 @@ interface NavItem {
 export function BottomNav() {
   const pathname = usePathname();
   const notifications = useDoorwayStore((s) => s.notifications);
+  const currentUser = useDoorwayStore((s) => s.currentUser);
+  const role = useDoorwayStore((s) => s.role);
   const likedListings = useDoorwayStore((s) => s.likedListings);
 
-  const unreadMessages = notifications.filter((n) => n.conversationId && !n.read).length;
+  const unreadMessages = filterNotificationsForUser(
+    notifications,
+    role,
+    currentUser,
+  ).filter((n) => n.conversationId && !n.read).length;
 
   const seekerNav: NavItem[] = [
     {

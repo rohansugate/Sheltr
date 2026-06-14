@@ -8,7 +8,7 @@ const en = {
   profile: "Profile",
   savedMatches: "Saved Matches",
   swipeRight: "Swipe right to save · left to pass",
-  tutorialTitle: "How Doorway works",
+  tutorialTitle: "How Sheltr works",
   tutorialBody: "Swipe right to save homes you like. Swipe left to pass. Tap Undo if you change your mind.",
   tutorialDismiss: "Got it",
   pass: "Pass",
@@ -62,7 +62,7 @@ const es: Partial<Record<TranslationKey, string>> = {
   tagline: "Tinder para vivienda Sección 8",
   discover: "Descubrir", matches: "Coincidencias", profile: "Perfil",
   savedMatches: "Guardados", swipeRight: "Desliza derecha para guardar",
-  tutorialTitle: "Cómo funciona Doorway",
+  tutorialTitle: "Cómo funciona Sheltr",
   tutorialBody: "Desliza a la derecha para guardar. Izquierda para pasar. Deshacer si cambias de opinión.",
   tutorialDismiss: "Entendido", pass: "Pasar", save: "Guardar", undo: "Deshacer",
   apply: "Aplicar", scheduleShowing: "Agendar visita", viewDetails: "Ver detalles",
@@ -73,37 +73,37 @@ const es: Partial<Record<TranslationKey, string>> = {
 
 const zh: Partial<Record<TranslationKey, string>> = {
   tagline: "第八条款住房版 Tinder", discover: "发现", matches: "匹配", profile: "个人",
-  tutorialTitle: "如何使用 Doorway", tutorialDismiss: "知道了", pass: "跳过", save: "保存", undo: "撤销",
+  tutorialTitle: "如何使用 Sheltr", tutorialDismiss: "知道了", pass: "跳过", save: "保存", undo: "撤销",
 };
 
 const tl: Partial<Record<TranslationKey, string>> = {
   tagline: "Tinder para sa Section 8 housing", discover: "Tuklasin", matches: "Mga match",
-  tutorialTitle: "Paano gumagana ang Doorway", tutorialDismiss: "Sige",
+  tutorialTitle: "Paano gumagana ang Sheltr", tutorialDismiss: "Sige",
 };
 
 const vi: Partial<Record<TranslationKey, string>> = {
   tagline: "Tinder cho nhà ở Mục 8", discover: "Khám phá", matches: "Đã lưu",
-  tutorialTitle: "Cách dùng Doorway", tutorialDismiss: "Đã hiểu",
+  tutorialTitle: "Cách dùng Sheltr", tutorialDismiss: "Đã hiểu",
 };
 
 const ja: Partial<Record<TranslationKey, string>> = {
   tagline: "セクション8住宅版Tinder", discover: "探す", matches: "保存済み",
-  tutorialTitle: "Doorwayの使い方", tutorialDismiss: "OK",
+  tutorialTitle: "Sheltrの使い方", tutorialDismiss: "OK",
 };
 
 const hi: Partial<Record<TranslationKey, string>> = {
   tagline: "सेक्शन 8 आवास के लिए Tinder", discover: "खोजें", matches: "सहेजे गए",
-  tutorialTitle: "Doorway कैसे काम करता है", tutorialDismiss: "समझ गया",
+  tutorialTitle: "Sheltr कैसे काम करता है", tutorialDismiss: "समझ गया",
 };
 
 const ar: Partial<Record<TranslationKey, string>> = {
   tagline: "تيندر لسكن القسم 8", discover: "اكتشف", matches: "المحفوظات",
-  tutorialTitle: "كيف يعمل Doorway", tutorialDismiss: "فهمت",
+  tutorialTitle: "كيف يعمل Sheltr", tutorialDismiss: "فهمت",
 };
 
 const fr: Partial<Record<TranslationKey, string>> = {
   tagline: "Tinder pour le logement Section 8", discover: "Découvrir", matches: "Favoris",
-  tutorialTitle: "Comment utiliser Doorway", tutorialDismiss: "Compris",
+  tutorialTitle: "Comment utiliser Sheltr", tutorialDismiss: "Compris",
 };
 
 const locales: Record<Locale, Partial<Record<TranslationKey, string>>> = {

@@ -141,7 +141,7 @@ async function requireProfileInDatabase(
 ): Promise<ProfileRow | { error: string }> {
   const { data: profile, error } = await fetchProfileWithAdmin(userId);
   if (error || !profile) {
-    return { error: "Account not found in Doorway. Please sign up first." };
+    return { error: "Account not found in Sheltr. Please sign up first." };
   }
   if (email && normalizeEmail(profile.email) !== normalizeEmail(email)) {
     return { error: "Account verification failed. Please try again." };
@@ -244,7 +244,7 @@ export async function createUser(input: {
 
   const { data: profile } = await fetchProfileWithAdmin(userId);
   if (!profile) {
-    return { error: "Account was created but not verified in Doorway. Try logging in." };
+    return { error: "Account was created but not verified in Sheltr. Try logging in." };
   }
 
   const sessionError = await establishPasswordSession(email, input.password);

@@ -1,6 +1,6 @@
 {
-  "name": "Doorway",
-  "short_name": "Doorway",
+  "name": "Sheltr",
+  "short_name": "Sheltr",
   "description": "Section 8 housing matching app",
   "start_url": "/",
   "display": "standalone",

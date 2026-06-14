@@ -38,6 +38,7 @@ import type { SyncStatus } from "./demo-sync";
 import { localStateToSyncPayload, mergeDemoPayload } from "./sync-merge";
 import { isDuplicateListing, sortByRelevance } from "./sort-listings";
 import {
+  displayName,
   resolveLandlord,
   resolveLandlordForListing,
   resolveSeeker,
@@ -104,6 +105,7 @@ interface DoorwayState {
   updateListing: (id: string, input: ListingInput) => boolean;
   publishListing: (id: string) => void;
   deactivateListing: (listingId: string) => void;
+  removeListing: (listingId: string) => void;
   reset: () => void;
 }
 
@@ -193,6 +195,7 @@ function inputToListing(
     source: "MANUAL",
     status,
     analytics: existing?.analytics ?? { views: 0, saves: 0, applications: 0 },
+    updatedAt: new Date().toISOString(),
   };
 }
 
@@ -200,10 +203,11 @@ function pushNotification(
   notifications: Notification[],
   title: string,
   message: string,
-  options?: {
+  options: {
     conversationId?: string;
     seekerId?: string;
     landlordId?: string;
+    fromName?: string;
   },
 ): Notification[] {
   const n: Notification = {
@@ -213,9 +217,10 @@ function pushNotification(
     channels: ["in_app", "email", "sms"],
     read: false,
     createdAt: new Date().toISOString(),
-    conversationId: options?.conversationId,
-    seekerId: options?.seekerId,
-    landlordId: options?.landlordId,
+    conversationId: options.conversationId,
+    seekerId: options.seekerId,
+    landlordId: options.landlordId,
+    fromName: options.fromName,
   };
   return [n, ...notifications];
 }
@@ -262,9 +267,24 @@ function openConversationForShowing(
   const existing = conversations.find(
     (c) => c.showingId === showing.id || c.id === `convo-showing-${showing.id}`,
   );
-  if (existing) return { conversations, conversation: existing };
-
   const landlord = resolveLandlordForListing(listing, currentUser);
+
+  if (existing) {
+    const repaired = {
+      ...existing,
+      seekerId: showing.seekerId,
+      seekerName: showing.seekerName,
+      landlordId: listing?.landlordId ?? landlord.id,
+      landlordName: landlord.name,
+      listingTitle: listing?.title ?? existing.listingTitle,
+      showingId: showing.id,
+    };
+    return {
+      conversations: upsertConversation(conversations, repaired),
+      conversation: repaired,
+    };
+  }
+
   const conversation: Conversation = {
     id: `convo-showing-${showing.id}`,
     showingId: showing.id,
@@ -272,7 +292,7 @@ function openConversationForShowing(
     listingTitle: listing?.title ?? "Listing",
     seekerId: showing.seekerId,
     seekerName: showing.seekerName,
-    landlordId: landlord.id,
+    landlordId: listing?.landlordId ?? landlord.id,
     landlordName: landlord.name,
     createdAt: new Date().toISOString(),
   };
@@ -292,7 +312,7 @@ function openConversationForApplication(
       ...existingByApp,
       seekerId: app.seekerId,
       seekerName: app.seekerName,
-      landlordId: landlord.id,
+      landlordId: listing?.landlordId ?? landlord.id,
       landlordName: landlord.name,
       listingTitle: listing?.title ?? existingByApp.listingTitle,
       applicationId: app.id,
@@ -312,7 +332,7 @@ function openConversationForApplication(
       applicationId: app.id,
       seekerId: app.seekerId,
       seekerName: app.seekerName,
-      landlordId: landlord.id,
+      landlordId: listing?.landlordId ?? landlord.id,
       landlordName: landlord.name,
       listingTitle: listing?.title ?? linkedShowing.listingTitle,
     };
@@ -331,7 +351,7 @@ function openConversationForApplication(
     listingTitle: listing?.title ?? "Listing",
     seekerId: app.seekerId,
     seekerName: app.seekerName,
-    landlordId: landlord.id,
+    landlordId: listing?.landlordId ?? landlord.id,
     landlordName: landlord.name,
     createdAt: new Date().toISOString(),
   };
@@ -556,12 +576,12 @@ export const useDoorwayStore = create<DoorwayState>()(
         };
 
         const listing = get().listings.find((l) => l.id === listingId);
+        const landlord = resolveLandlordForListing(listing, get().currentUser);
         const updatedListings = get().listings.map((l) =>
           l.id === listingId
             ? { ...l, analytics: { ...l.analytics, applications: l.analytics.applications + 1 } }
             : l,
         );
-
         set({
           applications: [...get().applications, app],
           listings: updatedListings,
@@ -572,6 +592,10 @@ export const useDoorwayStore = create<DoorwayState>()(
             get().notifications,
             "New application",
             `${seeker.firstName} ${seeker.lastName} applied for ${listing?.title ?? "your listing"}. Review it in Applications.`,
+            {
+              landlordId: landlord.id,
+              fromName: `${seeker.firstName} ${seeker.lastName}`,
+            },
           ),
         });
         return true;
@@ -609,12 +633,17 @@ export const useDoorwayStore = create<DoorwayState>()(
           createdAt: new Date().toISOString(),
         };
         const listing = get().listings.find((l) => l.id === listingId);
+        const landlord = resolveLandlordForListing(listing, get().currentUser);
         set({
           showings: [...get().showings, showing],
           notifications: pushNotification(
             get().notifications,
             "Showing requested",
-            `Showing request for ${listing?.title ?? "listing"} on ${date} at ${time}.`,
+            `${seeker.firstName} ${seeker.lastName} requested a showing for ${listing?.title ?? "your listing"} on ${date} at ${time}.`,
+            {
+              landlordId: landlord.id,
+              fromName: `${seeker.firstName} ${seeker.lastName}`,
+            },
           ),
         });
       },
@@ -662,12 +691,14 @@ export const useDoorwayStore = create<DoorwayState>()(
             {
               seekerId: showing.seekerId,
               conversationId: opened.conversation.id,
+              fromName: landlord.name,
             },
           ),
         });
       },
 
       declineShowing: (id, message) => {
+        const showing = get().showings.find((s) => s.id === id);
         const now = new Date().toISOString();
         set({
           showings: get().showings.map((s) =>
@@ -684,7 +715,10 @@ export const useDoorwayStore = create<DoorwayState>()(
             get().notifications,
             "Showing declined",
             message ?? "Showing request was declined.",
-            { seekerId: get().showings.find((s) => s.id === id)?.seekerId },
+            {
+              seekerId: showing?.seekerId,
+              fromName: displayName(resolveLandlord(get().currentUser)),
+            },
           ),
         });
       },
@@ -752,6 +786,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             {
               conversationId,
               seekerId: app.seekerId,
+              fromName: resolveLandlordForListing(listing, currentUser).name,
             },
           ),
         });
@@ -779,8 +814,16 @@ export const useDoorwayStore = create<DoorwayState>()(
 
         const recipientOptions =
           role === "SEEKER"
-            ? { conversationId, landlordId: conversation.landlordId }
-            : { conversationId, seekerId: conversation.seekerId };
+            ? {
+                conversationId,
+                landlordId: conversation.landlordId,
+                fromName: senderName,
+              }
+            : {
+                conversationId,
+                seekerId: conversation.seekerId,
+                fromName: senderName,
+              };
 
         set({
           messages: [...get().messages, msg],
@@ -954,16 +997,42 @@ export const useDoorwayStore = create<DoorwayState>()(
       },
 
       publishListing: (id) => {
+        const landlord = resolveLandlord(get().currentUser);
+        const now = new Date().toISOString();
         const updatedListings = get().listings.map((l) =>
-          l.id === id ? { ...l, status: "ACTIVE" as const } : l,
+          l.id === id && l.landlordId === landlord.id
+            ? { ...l, status: "ACTIVE" as const, updatedAt: now }
+            : l,
         );
         applyListingsUpdate(get, set, updatedListings);
       },
 
       deactivateListing: (listingId) => {
+        const landlord = resolveLandlord(get().currentUser);
+        const now = new Date().toISOString();
         const updatedListings = get().listings.map((l) =>
-          l.id === listingId ? { ...l, status: "INACTIVE" as const } : l,
+          l.id === listingId && l.landlordId === landlord.id
+            ? { ...l, status: "INACTIVE" as const, updatedAt: now }
+            : l,
         );
+        applyListingsUpdate(get, set, updatedListings);
+      },
+
+      removeListing: (listingId) => {
+        const landlord = resolveLandlord(get().currentUser);
+        const listing = get().listings.find((l) => l.id === listingId);
+        if (!listing || listing.landlordId !== landlord.id) return;
+
+        const now = new Date().toISOString();
+        const updatedListings =
+          listing.status === "ACTIVE"
+            ? get().listings.map((l) =>
+                l.id === listingId
+                  ? { ...l, status: "INACTIVE" as const, updatedAt: now }
+                  : l,
+              )
+            : get().listings.filter((l) => l.id !== listingId);
+
         applyListingsUpdate(get, set, updatedListings);
       },
 

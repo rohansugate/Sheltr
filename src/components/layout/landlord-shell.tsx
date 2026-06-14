@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { filterNotificationsForUser } from "@/lib/notifications";
 import { useDoorwayStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -47,10 +48,16 @@ const landlordNav = [
 export function LandlordShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const notifications = useDoorwayStore((s) => s.notifications);
+  const currentUser = useDoorwayStore((s) => s.currentUser);
+  const role = useDoorwayStore((s) => s.role);
   const applications = useDoorwayStore((s) => s.applications);
   const showings = useDoorwayStore((s) => s.showings);
 
-  const unreadMessages = notifications.filter((n) => n.conversationId && !n.read).length;
+  const unreadMessages = filterNotificationsForUser(
+    notifications,
+    role,
+    currentUser,
+  ).filter((n) => n.conversationId && !n.read).length;
   const pendingApps = applications.filter((a) => !["DECLINED", "LEASE_SIGNED"].includes(a.status)).length;
   const pendingShowings = showings.filter((s) => s.status === "REQUESTED").length;
 

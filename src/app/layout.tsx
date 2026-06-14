@@ -6,6 +6,7 @@ import { AuthSessionProvider } from "@/components/layout/auth-session-provider";
 import { DemoSyncProvider } from "@/components/layout/demo-sync-provider";
 import { HydrationGate } from "@/components/layout/hydration-gate";
 import { NotificationToast } from "@/components/layout/notification-toast";
+import { NotificationSheet } from "@/components/layout/notification-sheet";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import "./globals.css";
 
@@ -20,14 +21,14 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Doorway — Section 8 Housing Match",
+  title: "Sheltr — Section 8 Housing Match",
   description:
     "Swipe-based housing matching for voucher holders and landlords.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Doorway",
+    title: "Sheltr",
   },
 };
 
@@ -53,6 +54,7 @@ export default function RootLayout({
               <AuthSessionProvider>
                 <AuthGate>
                   <NotificationToast />
+                  <NotificationSheet />
                   <A11yProvider>{children}</A11yProvider>
                 </AuthGate>
               </AuthSessionProvider>

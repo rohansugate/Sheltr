@@ -18,8 +18,8 @@ export default function LandlordPage() {
   const landlord = resolveLandlord(currentUser);
   const applications = useDoorwayStore((s) => s.applications);
   const showings = useDoorwayStore((s) => s.showings);
-  const deactivateListing = useDoorwayStore((s) => s.deactivateListing);
   const publishListing = useDoorwayStore((s) => s.publishListing);
+  const removeListing = useDoorwayStore((s) => s.removeListing);
 
   const landlordListings = useMemo(
     () => listings.filter((l) => l.landlordId === landlord.id),
@@ -103,7 +103,7 @@ export default function LandlordPage() {
                   key={listing.id}
                   listing={listing}
                   onPublish={() => publishListing(listing.id)}
-                  onRemove={() => deactivateListing(listing.id)}
+                  onRemove={() => removeListing(listing.id)}
                 />
               ))}
             </ListingSection>
@@ -114,7 +114,7 @@ export default function LandlordPage() {
                 <ListingRow
                   key={listing.id}
                   listing={listing}
-                  onRemove={() => deactivateListing(listing.id)}
+                  onRemove={() => removeListing(listing.id)}
                 />
               ))}
             </ListingSection>
@@ -122,7 +122,12 @@ export default function LandlordPage() {
           {inactive.length > 0 && (
             <ListingSection title="Inactive">
               {inactive.map((listing) => (
-                <ListingRow key={listing.id} listing={listing} />
+                <ListingRow
+                  key={listing.id}
+                  listing={listing}
+                  onPublish={() => publishListing(listing.id)}
+                  onRemove={() => removeListing(listing.id)}
+                />
               ))}
             </ListingSection>
           )}
@@ -206,7 +211,7 @@ function ListingRow({
         </Link>
         {onPublish && (
           <Button variant="primary" size="sm" onClick={onPublish}>
-            Publish
+            {listing.status === "INACTIVE" ? "Activate" : "Publish"}
           </Button>
         )}
         {onRemove && (

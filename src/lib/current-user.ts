@@ -17,28 +17,23 @@ export function resolveLandlordForListing(
 ): { id: string; name: string } {
   const landlordId = listing?.landlordId;
 
-  if (
-    landlordId &&
-    currentUser?.role === "LANDLORD" &&
-    currentUser.id === landlordId
-  ) {
-    return {
-      id: landlordId,
-      name: `${currentUser.firstName} ${currentUser.lastName}`,
-    };
+  if (currentUser?.role === "LANDLORD") {
+    if (!landlordId || currentUser.id === landlordId) {
+      return {
+        id: currentUser.id,
+        name: `${currentUser.firstName} ${currentUser.lastName}`,
+      };
+    }
   }
 
-  if (landlordId === mockLandlord.id) {
+  if (landlordId && landlordId !== mockLandlord.id) {
+    return { id: landlordId, name: "Landlord" };
+  }
+
+  if (landlordId === mockLandlord.id || !landlordId) {
     return {
       id: mockLandlord.id,
       name: `${mockLandlord.firstName} ${mockLandlord.lastName}`,
-    };
-  }
-
-  if (currentUser?.role === "LANDLORD") {
-    return {
-      id: currentUser.id,
-      name: `${currentUser.firstName} ${currentUser.lastName}`,
     };
   }
 

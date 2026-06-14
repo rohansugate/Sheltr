@@ -6,7 +6,7 @@ const serverUrl = process.env.CAPACITOR_SERVER_URL;
 
 const config: CapacitorConfig = {
   appId: "com.doorway.app",
-  appName: "Doorway",
+  appName: "Sheltr",
   webDir: "public",
   server: serverUrl
     ? {

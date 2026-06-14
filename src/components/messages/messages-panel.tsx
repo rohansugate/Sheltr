@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { resolveLandlord, resolveSeeker } from "@/lib/current-user";
+import { filterNotificationsForUser } from "@/lib/notifications";
 import { useDoorwayStore } from "@/lib/store";
 import type { Conversation } from "@/lib/types";
 
@@ -13,8 +14,16 @@ interface MessagesPanelProps {
   role: "SEEKER" | "LANDLORD";
 }
 
-function conversationForUser(convo: Conversation, role: "SEEKER" | "LANDLORD", myId: string) {
-  return role === "SEEKER" ? convo.seekerId === myId : convo.landlordId === myId;
+function conversationForUser(
+  convo: Conversation,
+  role: "SEEKER" | "LANDLORD",
+  myId: string,
+  listings: { id: string; landlordId?: string }[],
+) {
+  if (role === "SEEKER") return convo.seekerId === myId;
+  if (convo.landlordId === myId) return true;
+  const listing = listings.find((l) => l.id === convo.listingId);
+  return listing?.landlordId === myId;
 }
 
 export function MessagesPanel({ role }: MessagesPanelProps) {
@@ -40,9 +49,9 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
   const myConversations = useMemo(
     () =>
       conversations
-        .filter((c) => conversationForUser(c, role, myId))
+        .filter((c) => conversationForUser(c, role, myId, listings))
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [conversations, role, myId],
+    [conversations, role, myId, listings],
   );
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -70,7 +79,9 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
   }, [thread.length, activeId]);
 
   const unreadFor = (conversationId: string) =>
-    notifications.some((n) => n.conversationId === conversationId && !n.read);
+    filterNotificationsForUser(notifications, role, currentUser).some(
+      (n) => n.conversationId === conversationId && !n.read,
+    );
 
   const openConversation = (convo: Conversation) => {
     setActiveId(convo.id);

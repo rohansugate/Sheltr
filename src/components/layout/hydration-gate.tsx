@@ -27,7 +27,7 @@ export function HydrationGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="doorway-gradient flex min-h-dvh items-center justify-center px-8">
         <div className="text-center">
-          <p className="font-serif text-2xl">Doorway</p>
+          <p className="font-serif text-2xl">Sheltr</p>
           <p className="mt-2 text-sm text-muted-foreground">Loading your matches…</p>
         </div>
       </div>
