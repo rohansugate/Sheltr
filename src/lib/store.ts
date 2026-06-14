@@ -97,6 +97,7 @@ interface DoorwayState {
   updateApplicationStatus: (id: string, status: ApplicationStatus) => void;
   sendMessage: (conversationId: string, text: string, role: "SEEKER" | "LANDLORD") => void;
   markConversationRead: (conversationId: string, role: "SEEKER" | "LANDLORD") => void;
+  ensureMessagingReady: () => void;
   applyRemoteSync: (payload: DemoSyncPayload) => void;
   markNotificationRead: (id: string) => void;
   saveListing: (input: ListingInput, status: "DRAFT" | "ACTIVE") => Listing | null;
@@ -219,19 +220,113 @@ function pushNotification(
   return [n, ...notifications];
 }
 
+function buildWelcomeMessage(
+  conversationId: string,
+  landlord: { id: string; name: string },
+  seekerFirstName: string,
+  listingTitle: string,
+  kind: "showing" | "application",
+): ChatMessage {
+  const text =
+    kind === "showing"
+      ? `Hi ${seekerFirstName}, your showing for ${listingTitle} is confirmed. Message me here if you need directions or have questions.`
+      : `Hi ${seekerFirstName}, your application for ${listingTitle} was accepted. Feel free to message me here if you have questions.`;
+
+  return {
+    id: `msg-welcome-${conversationId}`,
+    conversationId,
+    senderId: landlord.id,
+    senderRole: "LANDLORD",
+    text,
+    sentAt: new Date().toISOString(),
+  };
+}
+
+function upsertConversation(
+  conversations: Conversation[],
+  conversation: Conversation,
+): Conversation[] {
+  const index = conversations.findIndex((c) => c.id === conversation.id);
+  if (index === -1) return [...conversations, conversation];
+  const next = [...conversations];
+  next[index] = { ...next[index], ...conversation };
+  return next;
+}
+
+function openConversationForShowing(
+  showing: Showing,
+  listing: Listing | undefined,
+  conversations: Conversation[],
+  currentUser: User | null,
+): { conversations: Conversation[]; conversation: Conversation } {
+  const existing = conversations.find(
+    (c) => c.showingId === showing.id || c.id === `convo-showing-${showing.id}`,
+  );
+  if (existing) return { conversations, conversation: existing };
+
+  const landlord = resolveLandlordForListing(listing, currentUser);
+  const conversation: Conversation = {
+    id: `convo-showing-${showing.id}`,
+    showingId: showing.id,
+    listingId: showing.listingId,
+    listingTitle: listing?.title ?? "Listing",
+    seekerId: showing.seekerId,
+    seekerName: showing.seekerName,
+    landlordId: landlord.id,
+    landlordName: landlord.name,
+    createdAt: new Date().toISOString(),
+  };
+  return { conversations: [...conversations, conversation], conversation };
+}
+
 function openConversationForApplication(
   app: Application,
   listing: Listing | undefined,
   conversations: Conversation[],
   currentUser: User | null,
 ): { conversations: Conversation[]; conversation: Conversation } {
-  const existing = conversations.find((c) => c.applicationId === app.id);
-  if (existing) return { conversations, conversation: existing };
+  const existingByApp = conversations.find((c) => c.applicationId === app.id);
+  if (existingByApp) {
+    const landlord = resolveLandlordForListing(listing, currentUser);
+    const repaired = {
+      ...existingByApp,
+      seekerId: app.seekerId,
+      seekerName: app.seekerName,
+      landlordId: landlord.id,
+      landlordName: landlord.name,
+      listingTitle: listing?.title ?? existingByApp.listingTitle,
+      applicationId: app.id,
+      showingId: app.showingId,
+    };
+    return {
+      conversations: upsertConversation(conversations, repaired),
+      conversation: repaired,
+    };
+  }
+
+  const linkedShowing = conversations.find((c) => c.showingId === app.showingId);
+  if (linkedShowing) {
+    const landlord = resolveLandlordForListing(listing, currentUser);
+    const conversation: Conversation = {
+      ...linkedShowing,
+      applicationId: app.id,
+      seekerId: app.seekerId,
+      seekerName: app.seekerName,
+      landlordId: landlord.id,
+      landlordName: landlord.name,
+      listingTitle: listing?.title ?? linkedShowing.listingTitle,
+    };
+    return {
+      conversations: upsertConversation(conversations, conversation),
+      conversation,
+    };
+  }
 
   const landlord = resolveLandlordForListing(listing, currentUser);
   const conversation: Conversation = {
     id: `convo-${app.id}`,
     applicationId: app.id,
+    showingId: app.showingId,
     listingId: app.listingId,
     listingTitle: listing?.title ?? "Listing",
     seekerId: app.seekerId,
@@ -528,6 +623,7 @@ export const useDoorwayStore = create<DoorwayState>()(
         const showing = get().showings.find((s) => s.id === id);
         if (!showing) return;
         const seeker = resolveSeeker(get().currentUser);
+        const listing = get().listings.find((l) => l.id === showing.listingId);
         const now = new Date().toISOString();
         const accepted = {
           ...showing,
@@ -535,15 +631,38 @@ export const useDoorwayStore = create<DoorwayState>()(
           landlordMessage: message,
           updatedAt: now,
         };
+
+        const { currentUser } = get();
+        const opened = openConversationForShowing(
+          accepted,
+          listing,
+          get().conversations,
+          currentUser,
+        );
+        const landlord = resolveLandlordForListing(listing, currentUser);
+        const welcome = buildWelcomeMessage(
+          opened.conversation.id,
+          landlord,
+          showing.seekerName.split(" ")[0],
+          listing?.title ?? "the unit",
+          "showing",
+        );
+        const hasWelcome = get().messages.some((m) => m.id === welcome.id);
+
         set({
           showings: get().showings.map((s) => (s.id === id ? accepted : s)),
+          conversations: opened.conversations,
+          messages: hasWelcome ? get().messages : [...get().messages, welcome],
           lastConfirmedShowing:
             showing.seekerId === seeker.id ? accepted : get().lastConfirmedShowing,
           notifications: pushNotification(
             get().notifications,
             "Showing accepted",
-            `Your showing for ${showing.date} at ${showing.time} was confirmed. You can now apply for this home.`,
-            { seekerId: showing.seekerId },
+            `Your showing for ${showing.date} at ${showing.time} was confirmed. Open Messages to chat with your landlord.`,
+            {
+              seekerId: showing.seekerId,
+              conversationId: opened.conversation.id,
+            },
           ),
         });
       },
@@ -594,15 +713,16 @@ export const useDoorwayStore = create<DoorwayState>()(
           conversationId = opened.conversation.id;
 
           const landlord = resolveLandlordForListing(listing, currentUser);
-          const welcome: ChatMessage = {
-            id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-            conversationId: opened.conversation.id,
-            senderId: landlord.id,
-            senderRole: "LANDLORD",
-            text: `Hi ${app.seekerName.split(" ")[0]}, your application for ${listing?.title ?? "the unit"} was accepted. Feel free to message me here if you have questions.`,
-            sentAt: now,
-          };
-          messages = [...messages, welcome];
+          const welcome = buildWelcomeMessage(
+            opened.conversation.id,
+            landlord,
+            app.seekerName.split(" ")[0],
+            listing?.title ?? "the unit",
+            "application",
+          );
+          if (!messages.some((m) => m.id === welcome.id)) {
+            messages = [...messages, welcome];
+          }
         }
 
         const notifTitle =
@@ -657,15 +777,87 @@ export const useDoorwayStore = create<DoorwayState>()(
           sentAt: new Date().toISOString(),
         };
 
+        const recipientOptions =
+          role === "SEEKER"
+            ? { conversationId, landlordId: conversation.landlordId }
+            : { conversationId, seekerId: conversation.seekerId };
+
         set({
           messages: [...get().messages, msg],
           notifications: pushNotification(
             get().notifications,
             `New message from ${senderName}`,
             text,
-            { conversationId },
+            recipientOptions,
           ),
         });
+      },
+
+      ensureMessagingReady: () => {
+        const { applications, showings, listings, conversations, messages, currentUser } =
+          get();
+        let nextConversations = [...conversations];
+        let nextMessages = [...messages];
+        const startSignature = nextConversations
+          .map((c) => `${c.id}:${c.landlordId}:${c.seekerId}`)
+          .join(",");
+        const startMessageCount = nextMessages.length;
+
+        for (const showing of showings.filter((s) => s.status === "ACCEPTED")) {
+          const listing = listings.find((l) => l.id === showing.listingId);
+          const opened = openConversationForShowing(
+            showing,
+            listing,
+            nextConversations,
+            currentUser,
+          );
+          nextConversations = opened.conversations;
+
+          const landlord = resolveLandlordForListing(listing, currentUser);
+          const welcome = buildWelcomeMessage(
+            opened.conversation.id,
+            landlord,
+            showing.seekerName.split(" ")[0],
+            listing?.title ?? "the unit",
+            "showing",
+          );
+          if (!nextMessages.some((m) => m.id === welcome.id)) {
+            nextMessages = [...nextMessages, welcome];
+          }
+        }
+
+        for (const app of applications.filter((a) =>
+          ["ACCEPTED", "LEASE_SIGNED"].includes(a.status),
+        )) {
+          const listing = listings.find((l) => l.id === app.listingId);
+          const opened = openConversationForApplication(
+            app,
+            listing,
+            nextConversations,
+            currentUser,
+          );
+          nextConversations = opened.conversations;
+
+          const landlord = resolveLandlordForListing(listing, currentUser);
+          const welcome = buildWelcomeMessage(
+            opened.conversation.id,
+            landlord,
+            app.seekerName.split(" ")[0],
+            listing?.title ?? "the unit",
+            "application",
+          );
+          if (!nextMessages.some((m) => m.id === welcome.id)) {
+            nextMessages = [...nextMessages, welcome];
+          }
+        }
+
+        const endSignature = nextConversations
+          .map((c) => `${c.id}:${c.landlordId}:${c.seekerId}`)
+          .join(",");
+        if (endSignature === startSignature && nextMessages.length === startMessageCount) {
+          return;
+        }
+        set({ conversations: nextConversations, messages: nextMessages });
       },
 
       markConversationRead: (conversationId, role) => {

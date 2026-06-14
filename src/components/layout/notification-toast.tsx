@@ -2,12 +2,22 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { resolveSeeker } from "@/lib/current-user";
+import { resolveLandlord, resolveSeeker } from "@/lib/current-user";
 import { useDoorwayStore } from "@/lib/store";
 import type { Notification } from "@/lib/types";
 
-function isForCurrentUser(notification: Notification, seekerId: string) {
-  return !notification.seekerId || notification.seekerId === seekerId;
+function isForCurrentUser(
+  notification: Notification,
+  role: "SEEKER" | "LANDLORD" | null,
+  userId: string,
+) {
+  if (role === "SEEKER") {
+    return !notification.seekerId || notification.seekerId === userId;
+  }
+  if (role === "LANDLORD") {
+    return !notification.landlordId || notification.landlordId === userId;
+  }
+  return true;
 }
 
 export function NotificationToast() {
@@ -18,15 +28,21 @@ export function NotificationToast() {
   const [active, setActive] = useState<Notification | null>(null);
 
   useEffect(() => {
-    if (role !== "SEEKER") return;
+    if (!role || (role !== "SEEKER" && role !== "LANDLORD")) return;
 
-    const seeker = resolveSeeker(currentUser);
+    const userId =
+      role === "SEEKER"
+        ? resolveSeeker(currentUser).id
+        : resolveLandlord(currentUser).id;
+
     const next = notifications.find(
       (n) =>
         !n.read &&
-        isForCurrentUser(n, seeker.id) &&
+        isForCurrentUser(n, role, userId) &&
         !seen.current.has(n.id) &&
-        (n.title.includes("accepted") || n.title.includes("Showing accepted")),
+        (n.title.includes("accepted") ||
+          n.title.includes("message") ||
+          n.title.includes("Message")),
     );
 
     if (!next) return;
@@ -40,9 +56,14 @@ export function NotificationToast() {
 
   if (!active) return null;
 
-  const href = active.conversationId
-    ? `/messages?conversationId=${active.conversationId}`
-    : "/profile";
+  const href =
+    active.conversationId && role === "LANDLORD"
+      ? `/landlord/messages?conversationId=${active.conversationId}`
+      : active.conversationId
+        ? `/messages?conversationId=${active.conversationId}`
+        : role === "LANDLORD"
+          ? "/landlord/messages"
+          : "/messages";
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-0 z-[80] flex justify-center px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">

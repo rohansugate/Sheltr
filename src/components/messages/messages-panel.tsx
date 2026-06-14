@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,10 @@ interface MessagesPanelProps {
   role: "SEEKER" | "LANDLORD";
 }
 
+function conversationForUser(convo: Conversation, role: "SEEKER" | "LANDLORD", myId: string) {
+  return role === "SEEKER" ? convo.seekerId === myId : convo.landlordId === myId;
+}
+
 export function MessagesPanel({ role }: MessagesPanelProps) {
   const searchParams = useSearchParams();
   const conversations = useDoorwayStore((s) => s.conversations);
@@ -22,13 +26,23 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
   const currentUser = useDoorwayStore((s) => s.currentUser);
   const sendMessage = useDoorwayStore((s) => s.sendMessage);
   const markConversationRead = useDoorwayStore((s) => s.markConversationRead);
+  const ensureMessagingReady = useDoorwayStore((s) => s.ensureMessagingReady);
 
   const myId =
     role === "SEEKER"
       ? resolveSeeker(currentUser).id
       : resolveLandlord(currentUser).id;
-  const myConversations = conversations.filter((c) =>
-    role === "SEEKER" ? c.seekerId === myId : c.landlordId === myId,
+
+  useEffect(() => {
+    ensureMessagingReady();
+  }, [ensureMessagingReady]);
+
+  const myConversations = useMemo(
+    () =>
+      conversations
+        .filter((c) => conversationForUser(c, role, myId))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [conversations, role, myId],
   );
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -63,7 +77,7 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
     markConversationRead(convo.id, role);
   };
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!active || !draft.trim() || sending) return;
     setSending(true);
     sendMessage(active.id, draft.trim(), role);
@@ -95,7 +109,7 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
         >
           {thread.length === 0 ? (
             <p className="text-center text-sm text-muted-foreground">
-              Say hello — messaging opens after an application is accepted.
+              Say hello — your chat is open.
             </p>
           ) : (
             thread.map((msg) => {
@@ -147,8 +161,8 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
           <h2 className="font-serif text-[1.65rem]">No messages yet</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {role === "SEEKER"
-              ? "After a landlord accepts your application, you can message them here."
-              : "Accept an application to open a chat with the tenant."}
+              ? "After a landlord accepts your showing or application, you can message them here."
+              : "Accept a showing or application to open a chat with the tenant."}
           </p>
           {role === "LANDLORD" && (
             <Link

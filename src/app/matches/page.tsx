@@ -30,6 +30,18 @@ export default function MatchesPage() {
   const getAppStatus = (listingId: string) =>
     applications.find((a) => a.listingId === listingId)?.status;
 
+  const getMessageHref = (listingId: string) => {
+    const app = applications.find((a) => a.listingId === listingId);
+    if (app && ["ACCEPTED", "LEASE_SIGNED"].includes(app.status)) {
+      return `/messages?conversationId=convo-${app.id}`;
+    }
+    const showing = getShowingForListing(listingId);
+    if (showing?.status === "ACCEPTED") {
+      return `/messages?conversationId=convo-showing-${showing.id}`;
+    }
+    return null;
+  };
+
   const toggleCompare = (id: string) => {
     setCompareIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < 3 ? [...prev, id] : prev,
@@ -85,6 +97,7 @@ export default function MatchesPage() {
             <ul className="flex flex-col gap-3 px-4 py-4">
               {likedListings.map((listing) => {
                 const status = getAppStatus(listing.id);
+                const messageHref = getMessageHref(listing.id);
                 return (
                   <li key={listing.id} className="flex gap-4 rounded-2xl border border-border bg-card p-3">
                     <div className="relative size-24 shrink-0 overflow-hidden rounded-xl bg-muted">
@@ -101,6 +114,11 @@ export default function MatchesPage() {
                         <Button variant={compareIds.includes(listing.id) ? "primary" : "outline"} size="sm" onClick={() => toggleCompare(listing.id)}>
                           {compareIds.includes(listing.id) ? "✓" : "+"}
                         </Button>
+                      )}
+                      {messageHref && (
+                        <Link href={messageHref}>
+                          <Button variant="outline" size="sm">Message</Button>
+                        </Link>
                       )}
                       <Button variant="primary" size="sm" onClick={() => setSelected(listing)}>{t(locale, "viewDetails")}</Button>
                     </div>

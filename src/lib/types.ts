@@ -142,7 +142,8 @@ export interface Notification {
 
 export interface Conversation {
   id: string;
-  applicationId: string;
+  applicationId?: string;
+  showingId?: string;
   listingId: string;
   listingTitle: string;
   seekerId: string;

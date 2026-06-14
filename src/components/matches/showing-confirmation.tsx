@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
 import { useDoorwayStore } from "@/lib/store";
@@ -26,6 +27,9 @@ export function ShowingConfirmation() {
           <a href={calUrl} target="_blank" rel="noopener noreferrer">
             <Button variant="primary" size="lg" className="w-full">{t(locale, "addToCalendar")}</Button>
           </a>
+          <Link href={`/messages?conversationId=convo-showing-${showing.id}`}>
+            <Button variant="outline" size="lg" className="w-full">Message landlord</Button>
+          </Link>
           <Button variant="outline" size="lg" className="w-full" onClick={clearConfirmedShowing}>Close</Button>
         </div>
       </div>

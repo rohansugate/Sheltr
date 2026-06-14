@@ -53,7 +53,14 @@ export default function LandlordApplicantsPage() {
                     <h3 className="font-bold">{s.seekerName}</h3>
                     <p className="text-sm text-muted-foreground">{listing?.title}</p>
                     <p className="text-sm">{s.date} at {s.time} · {s.contactMethod}: {s.contactValue}</p>
-                    <Badge variant="outline" className="mt-2">{s.status}</Badge>
+                    <Badge variant={s.status === "ACCEPTED" ? "success" : "outline"} className="mt-2">
+                      {s.status}
+                    </Badge>
+                    {s.status === "ACCEPTED" && (
+                      <Link href={`/landlord/messages?conversationId=convo-showing-${s.id}`} className="mt-3 inline-block">
+                        <Button variant="outline" size="sm">Message tenant</Button>
+                      </Link>
+                    )}
                     {s.status === "REQUESTED" && (
                       <div className="mt-3 flex flex-col gap-2">
                         <Input
