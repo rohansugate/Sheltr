@@ -7,7 +7,7 @@ import { DoorwayHeader } from "@/components/layout/doorway-header";
 import { RoleSwitcher } from "@/components/layout/role-switcher";
 import { Button } from "@/components/ui/button";
 import { displayName, initials, resolveLandlord } from "@/lib/current-user";
-import { signOutAccount } from "@/lib/auth-client";
+import { signOutAccount, switchAccount } from "@/lib/auth-client";
 import { useDoorwayStore } from "@/lib/store";
 
 const ROLES = [
@@ -40,6 +40,24 @@ export default function LandlordProfilePage() {
       </div>
 
       <div className="flex flex-col gap-4 px-5 pb-8">
+        {currentUser && (
+          <section className="rounded-2xl border border-border p-4">
+            <h2 className="mb-2 font-bold">Account</h2>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Need the tenant side? Switch accounts and sign in with a tenant
+              account, or create a new one.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full rounded-full"
+              onClick={() => switchAccount({ role: "SEEKER", mode: "login" })}
+            >
+              Switch account
+            </Button>
+          </section>
+        )}
+
         {!currentUser && (
           <section className="rounded-2xl border border-border p-4">
             <h2 className="mb-3 font-bold">Switch role</h2>

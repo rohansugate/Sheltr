@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { displayName, resolveLandlord } from "@/lib/current-user";
+import { switchAccount } from "@/lib/auth-client";
 import { useDoorwayStore } from "@/lib/store";
 import type { UserRole } from "@/lib/types";
 
@@ -48,7 +49,43 @@ export function RoleSwitcher({ compact }: { compact?: boolean }) {
   const currentUser = useDoorwayStore((s) => s.currentUser);
   const setRole = useDoorwayStore((s) => s.setRole);
 
-  if (currentUser) return null;
+  if (currentUser) {
+    const otherRole = role === "SEEKER" ? "LANDLORD" : "SEEKER";
+    const otherLabel = role === "SEEKER" ? "landlord" : "tenant";
+
+    if (compact) {
+      return (
+        <button
+          type="button"
+          onClick={() => switchAccount({ role: otherRole, mode: "login" })}
+          className="mx-5 mb-3 self-start rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+        >
+          Switch to {otherLabel} account
+        </button>
+      );
+    }
+
+    return (
+      <div className="mx-5 mb-3 flex items-center justify-between rounded-2xl border border-border bg-surface px-4 py-3">
+        <p className="text-sm">
+          Signed in as <span className="font-semibold">{displayName(currentUser)}</span>
+          <span className="text-muted-foreground">
+            {" "}
+            · {role === "LANDLORD" ? "Landlord" : "Tenant"}
+          </span>
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 rounded-full"
+          onClick={() => switchAccount({ role: otherRole, mode: "login" })}
+        >
+          Switch account
+        </Button>
+      </div>
+    );
+  }
+
   if (role !== "SEEKER" && role !== "LANDLORD") return null;
 
   const config = ROLE_CONFIG[role];

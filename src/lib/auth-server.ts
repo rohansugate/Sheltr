@@ -87,6 +87,39 @@ async function fetchProfileWithAdmin(userId: string) {
     .single<ProfileRow>();
 }
 
+export async function lookupProfileByEmail(
+  email: string,
+): Promise<ProfileRow | null> {
+  if (!hasSupabaseEnv()) return null;
+
+  const normalized = normalizeEmail(email);
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("lookup_profile_by_email", {
+    p_email: normalized,
+  });
+
+  if (error || !data) return null;
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+
+  return row as ProfileRow;
+}
+
+async function requireProfileInDatabase(
+  userId: string,
+  email?: string,
+): Promise<ProfileRow | { error: string }> {
+  const { data: profile, error } = await fetchProfileWithAdmin(userId);
+  if (error || !profile) {
+    return { error: "Account not found in Doorway. Please sign up first." };
+  }
+  if (email && normalizeEmail(profile.email) !== normalizeEmail(email)) {
+    return { error: "Account verification failed. Please try again." };
+  }
+  return profile;
+}
+
 export async function getSessionUser(): Promise<User | null> {
   if (!hasSupabaseEnv()) return null;
 
@@ -94,10 +127,13 @@ export async function getSessionUser(): Promise<User | null> {
   const { data } = await supabase.auth.getUser();
   if (!data.user) return null;
 
-  const { data: profile } = await fetchProfile(data.user.id);
-  if (!profile) return null;
+  const verified = await requireProfileInDatabase(data.user.id);
+  if ("error" in verified) {
+    await signOutSession();
+    return null;
+  }
 
-  return toAppUser(profileToPublicUser(profile));
+  return toAppUser(profileToPublicUser(verified));
 }
 
 export async function signOutSession() {
@@ -123,6 +159,12 @@ export async function createUser(input: {
   if (!email || !email.includes("@")) {
     return { error: "Enter a valid email address." };
   }
+
+  const existing = await lookupProfileByEmail(email);
+  if (existing) {
+    return { error: "An account with this email already exists. Log in instead." };
+  }
+
   if (input.password.length < 6) {
     return { error: "Password must be at least 6 characters." };
   }
@@ -167,19 +209,11 @@ export async function createUser(input: {
   }
 
   const { data: profile } = await fetchProfileWithAdmin(userId);
-  if (profile) {
-    return { user: profileToPublicUser(profile) };
+  if (!profile) {
+    return { error: "Account was created but not verified in Doorway. Try logging in." };
   }
 
-  return {
-    user: {
-      id: userId,
-      email,
-      firstName: input.firstName.trim(),
-      lastName: input.lastName.trim(),
-      role: input.role,
-    },
-  };
+  return { user: profileToPublicUser(profile) };
 }
 
 export async function authenticateUser(
@@ -193,6 +227,11 @@ export async function authenticateUser(
   }
 
   const normalizedEmail = normalizeEmail(email);
+  const knownProfile = await lookupProfileByEmail(normalizedEmail);
+  if (!knownProfile) {
+    return { error: "No account found with this email. Create one first." };
+  }
+
   const supabase = await createClient();
 
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -204,11 +243,11 @@ export async function authenticateUser(
     return { error: mapAuthError(authError?.message ?? "Invalid email or password.") };
   }
 
-  const { data: profile, error: profileError } = await fetchProfile(authData.user.id);
-
-  if (profileError || !profile) {
-    return { error: "Account profile not found. Contact support." };
+  const verified = await requireProfileInDatabase(authData.user.id, normalizedEmail);
+  if ("error" in verified) {
+    await signOutSession();
+    return { error: verified.error };
   }
 
-  return { user: profileToPublicUser(profile) };
+  return { user: profileToPublicUser(verified) };
 }

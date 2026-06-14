@@ -24,7 +24,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
     if (!currentUser) {
       if (role) return;
-      router.replace("/auth");
+      router.replace("/auth?switch=1&mode=login");
       return;
     }
 

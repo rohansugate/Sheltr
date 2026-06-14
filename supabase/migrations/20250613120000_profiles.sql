@@ -47,3 +47,26 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row
   execute function public.handle_new_user();
+
+-- Email lookup for account verification at login (security definer, read-only).
+
+create or replace function public.lookup_profile_by_email(p_email text)
+returns table (
+  id uuid,
+  email text,
+  first_name text,
+  last_name text,
+  role public.doorway_role
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select p.id, p.email, p.first_name, p.last_name, p.role
+  from public.profiles p
+  where lower(trim(p.email)) = lower(trim(p_email))
+  limit 1;
+$$;
+
+revoke execute on function public.lookup_profile_by_email(text) from public;
+grant execute on function public.lookup_profile_by_email(text) to anon, authenticated, service_role;

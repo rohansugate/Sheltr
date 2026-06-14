@@ -6,7 +6,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { DoorwayHeader } from "@/components/layout/doorway-header";
 import { Button } from "@/components/ui/button";
 import { displayName, initials, resolveSeeker } from "@/lib/current-user";
-import { signOutAccount } from "@/lib/auth-client";
+import { signOutAccount, switchAccount } from "@/lib/auth-client";
 import { LOCALE_LABELS, t } from "@/lib/i18n";
 import { useDoorwayStore } from "@/lib/store";
 import type { Locale } from "@/lib/types";
@@ -60,6 +60,24 @@ export default function ProfilePage() {
       </div>
 
       <div className="flex flex-col gap-4 px-5 pb-8">
+        {currentUser && (
+          <section className="rounded-2xl border border-border p-4">
+            <h2 className="mb-2 font-bold">Account</h2>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Need the landlord side? Switch accounts and sign in with a landlord
+              account, or create a new one.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => switchAccount({ role: "LANDLORD", mode: "login" })}
+            >
+              Switch account
+            </Button>
+          </section>
+        )}
+
         {!currentUser && (
           <section className="rounded-2xl border border-border p-4">
             <h2 className="mb-3 font-bold">{t(locale, "switchRole")}</h2>

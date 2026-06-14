@@ -62,7 +62,7 @@ export default function HomePage() {
   }, [currentUser, role, onboardingComplete, router]);
 
   const handleRoleSelect = (selectedRole: UserRole) => {
-    router.push(`/auth?role=${selectedRole}`);
+    router.push(`/auth?switch=1&role=${selectedRole}&mode=signup`);
   };
 
   return (
@@ -75,11 +75,8 @@ export default function HomePage() {
       </div>
 
       <div className="px-6 pb-4">
-        <Link
-          href="/auth"
-          className="block rounded-2xl bg-foreground px-4 py-4 text-center text-sm font-medium text-background transition-opacity hover:opacity-90"
-        >
-          Create account or log in
+        <Link href="/auth?switch=1&mode=login" className="block rounded-2xl bg-foreground px-4 py-4 text-center text-sm font-medium text-background transition-opacity hover:opacity-90">
+          Sign in or create account
         </Link>
         <p className="mt-2 text-center text-xs text-muted-foreground">
           Pick tenant or landlord when you sign up

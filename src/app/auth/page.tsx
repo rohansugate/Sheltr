@@ -12,6 +12,14 @@ import type { User } from "@/lib/types";
 type AuthMode = "signup" | "login";
 type SignupRole = "SEEKER" | "LANDLORD";
 
+interface VerifiedAccount {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: "SEEKER" | "LANDLORD";
+}
+
 const ROLE_OPTIONS: {
   role: SignupRole;
   title: string;
@@ -29,40 +37,97 @@ const ROLE_OPTIONS: {
   },
 ];
 
+function roleLabel(role: SignupRole) {
+  return role === "SEEKER" ? "Tenant" : "Landlord";
+}
+
 export default function AuthPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isSwitching = searchParams.get("switch") === "1";
   const currentUser = useDoorwayStore((s) => s.currentUser);
   const onboardingComplete = useDoorwayStore((s) => s.onboardingComplete);
   const loginUser = useDoorwayStore((s) => s.loginUser);
 
-  const [mode, setMode] = useState<AuthMode>("signup");
+  const [mode, setMode] = useState<AuthMode>(() => {
+    const m = searchParams.get("mode");
+    if (m === "login" || m === "signup") return m;
+    return isSwitching ? "login" : "signup";
+  });
   const [signupRole, setSignupRole] = useState<SignupRole>(() => {
     const role = searchParams.get("role");
     return role === "LANDLORD" ? "LANDLORD" : "SEEKER";
   });
-
-  useEffect(() => {
-    const role = searchParams.get("role");
-    if (role === "LANDLORD" || role === "SEEKER") {
-      setSignupRole(role);
-      setMode("signup");
-    }
-  }, [searchParams]);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [verifiedAccount, setVerifiedAccount] = useState<VerifiedAccount | null>(null);
 
   useEffect(() => {
-    if (!currentUser) return;
+    const role = searchParams.get("role");
+    if (role === "LANDLORD" || role === "SEEKER") {
+      setSignupRole(role);
+    }
+    const m = searchParams.get("mode");
+    if (m === "login" || m === "signup") setMode(m);
+    else if (searchParams.get("switch") === "1") setMode("login");
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!currentUser || isSwitching) return;
     router.replace(homePathForUser(currentUser, onboardingComplete));
-  }, [currentUser, onboardingComplete, router]);
+  }, [currentUser, onboardingComplete, router, isSwitching]);
 
   const redirectAfterAuth = (user: User) => {
     router.push(homePathForUser(user, useDoorwayStore.getState().onboardingComplete));
+  };
+
+  const resetVerification = () => {
+    setVerifiedAccount(null);
+    setError("");
+  };
+
+  const checkAccount = async () => {
+    const trimmed = email.trim();
+    if (!trimmed || !trimmed.includes("@")) {
+      setError("Enter your email to check your account.");
+      return;
+    }
+
+    setChecking(true);
+    setError("");
+    setVerifiedAccount(null);
+
+    try {
+      const res = await fetch("/api/auth/check-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? "Could not verify account.");
+        return;
+      }
+
+      if (!data.exists) {
+        setError("No account found in Doorway. Create a new account below.");
+        setMode("signup");
+        return;
+      }
+
+      setVerifiedAccount(data.user);
+      setMode("login");
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setChecking(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -71,6 +136,12 @@ export default function AuthPage() {
     setLoading(true);
 
     try {
+      if (mode === "login" && !verifiedAccount) {
+        await checkAccount();
+        setLoading(false);
+        return;
+      }
+
       const endpoint = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
       const body =
         mode === "signup"
@@ -100,14 +171,20 @@ export default function AuthPage() {
 
   return (
     <div className="app-shell doorway-gradient flex min-h-dvh flex-col">
-      <DoorwayHeader subtitle="Create your account" className="pt-12" />
+      <DoorwayHeader
+        subtitle={isSwitching ? "Switch account" : "Your account"}
+        className="pt-12"
+      />
 
       <div className="px-6 pb-4 text-center">
         <p className="font-serif text-xl leading-snug">
-          Join Doorway as a tenant or landlord
+          {isSwitching
+            ? "Sign in or create another account"
+            : "Join Doorway as a tenant or landlord"}
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Each account is tied to one role so many unique users can connect.
+          Accounts are verified against Doorway&apos;s database. Each signup picks
+          one role — tenant or landlord.
         </p>
       </div>
 
@@ -115,22 +192,8 @@ export default function AuthPage() {
         <button
           type="button"
           onClick={() => {
-            setMode("signup");
-            setError("");
-          }}
-          className={`flex-1 rounded-full py-2.5 text-sm font-medium transition-colors ${
-            mode === "signup"
-              ? "bg-foreground text-background"
-              : "text-muted-foreground"
-          }`}
-        >
-          Sign up
-        </button>
-        <button
-          type="button"
-          onClick={() => {
             setMode("login");
-            setError("");
+            resetVerification();
           }}
           className={`flex-1 rounded-full py-2.5 text-sm font-medium transition-colors ${
             mode === "login"
@@ -138,7 +201,21 @@ export default function AuthPage() {
               : "text-muted-foreground"
           }`}
         >
-          Log in
+          I have an account
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setMode("signup");
+            resetVerification();
+          }}
+          className={`flex-1 rounded-full py-2.5 text-sm font-medium transition-colors ${
+            mode === "signup"
+              ? "bg-foreground text-background"
+              : "text-muted-foreground"
+          }`}
+        >
+          New account
         </button>
       </div>
 
@@ -189,19 +266,36 @@ export default function AuthPage() {
           label="Email"
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (verifiedAccount) resetVerification();
+          }}
           autoComplete="email"
           required
         />
-        <Input
-          label="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete={mode === "signup" ? "new-password" : "current-password"}
-          minLength={6}
-          required
-        />
+
+        {mode === "login" && verifiedAccount && (
+          <div className="rounded-2xl border border-foreground/20 bg-card px-4 py-3 text-sm">
+            <p className="font-medium text-foreground">
+              Account found: {verifiedAccount.firstName} {verifiedAccount.lastName}
+            </p>
+            <p className="text-muted-foreground">
+              {roleLabel(verifiedAccount.role)} · {verifiedAccount.email}
+            </p>
+          </div>
+        )}
+
+        {(mode === "signup" || verifiedAccount) && (
+          <Input
+            label="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            minLength={6}
+            required
+          />
+        )}
 
         {error && (
           <p className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -209,19 +303,42 @@ export default function AuthPage() {
           </p>
         )}
 
-        <Button
-          type="submit"
-          variant="primary"
-          size="md"
-          className="mt-2 w-full rounded-2xl"
-          disabled={loading}
-        >
-          {loading
-            ? "Please wait…"
-            : mode === "signup"
-              ? `Create ${signupRole === "SEEKER" ? "tenant" : "landlord"} account`
-              : "Log in"}
-        </Button>
+        {mode === "login" && !verifiedAccount ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="mt-2 w-full rounded-2xl"
+            disabled={checking}
+            onClick={checkAccount}
+          >
+            {checking ? "Checking account…" : "Check my account"}
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            className="mt-2 w-full rounded-2xl"
+            disabled={loading}
+          >
+            {loading
+              ? "Please wait…"
+              : mode === "signup"
+                ? `Create ${roleLabel(signupRole)} account`
+                : "Log in"}
+          </Button>
+        )}
+
+        {mode === "login" && verifiedAccount && (
+          <button
+            type="button"
+            onClick={resetVerification}
+            className="text-center text-sm text-muted-foreground hover:text-foreground"
+          >
+            Use a different email
+          </button>
+        )}
 
         <button
           type="button"
