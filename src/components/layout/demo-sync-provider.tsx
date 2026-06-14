@@ -8,9 +8,12 @@ const POLL_MS = 1000;
 
 export function DemoSyncProvider({ children }: { children: React.ReactNode }) {
   const pushing = useRef(false);
+  const localRevision = useRef(0);
   const setSyncStatus = useDoorwayStore((s) => s.setSyncStatus);
 
   const pull = useCallback(async () => {
+    if (pushing.current) return;
+
     const remote = await pullDemoSync();
     if (!remote) {
       setSyncStatus({
@@ -31,8 +34,13 @@ export function DemoSyncProvider({ children }: { children: React.ReactNode }) {
 
     if (!remote.state?.updatedAt) return;
 
-    const localUpdated = useDoorwayStore.getState().lastSyncedAt ?? "";
-    if (remote.state.updatedAt > localUpdated) {
+    const { lastSyncedAt, lastLocalRevision } = useDoorwayStore.getState();
+    const localUpdated = lastSyncedAt ?? "";
+    if (
+      remote.state.updatedAt > localUpdated &&
+      remote.state.updatedAt &&
+      (lastLocalRevision ?? 0) <= localRevision.current
+    ) {
       useDoorwayStore.getState().applyRemoteSync(remote.state);
     }
   }, [setSyncStatus]);
@@ -73,13 +81,9 @@ export function DemoSyncProvider({ children }: { children: React.ReactNode }) {
 
       if (!changed) return;
 
+      localRevision.current += 1;
+      const revision = localRevision.current;
       pushing.current = true;
-      setSyncStatus({
-        storage: state.syncStatus?.storage ?? "memory",
-        ready: state.syncStatus?.ready ?? false,
-        lastPulledAt: state.syncStatus?.lastPulledAt ?? null,
-        syncing: true,
-      });
 
       const payload = buildSyncPayload({
         listings: state.listings,
@@ -90,16 +94,32 @@ export function DemoSyncProvider({ children }: { children: React.ReactNode }) {
         notifications: state.notifications,
       });
 
+      useDoorwayStore.setState({
+        lastSyncedAt: payload.updatedAt,
+        lastLocalRevision: revision,
+      });
+
+      setSyncStatus({
+        storage: state.syncStatus?.storage ?? "memory",
+        ready: state.syncStatus?.ready ?? false,
+        lastPulledAt: state.syncStatus?.lastPulledAt ?? null,
+        syncing: true,
+      });
+
       pushDemoSync(payload)
-        .finally(async () => {
-          useDoorwayStore.setState({ lastSyncedAt: payload.updatedAt });
+        .finally(() => {
           pushing.current = false;
-          await pull();
+          setSyncStatus({
+            storage: useDoorwayStore.getState().syncStatus?.storage ?? "memory",
+            ready: useDoorwayStore.getState().syncStatus?.ready ?? false,
+            lastPulledAt: useDoorwayStore.getState().syncStatus?.lastPulledAt ?? null,
+            syncing: false,
+          });
         });
     });
 
     return unsub;
-  }, [pull, setSyncStatus]);
+  }, [setSyncStatus]);
 
   return children;
 }

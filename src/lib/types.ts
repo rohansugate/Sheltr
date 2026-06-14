@@ -108,6 +108,7 @@ export interface Application {
   packet: ApplicationPacket;
   status: ApplicationStatus;
   sentAt: string;
+  updatedAt?: string;
 }
 
 export interface Showing {
@@ -122,6 +123,7 @@ export interface Showing {
   status: ShowingStatus;
   landlordMessage?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Notification {
@@ -132,6 +134,10 @@ export interface Notification {
   read: boolean;
   createdAt: string;
   conversationId?: string;
+  /** Tenant who should see this alert (demo sync). */
+  seekerId?: string;
+  /** Landlord who should see this alert (demo sync). */
+  landlordId?: string;
 }
 
 export interface Conversation {

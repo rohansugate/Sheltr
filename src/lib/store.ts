@@ -65,6 +65,7 @@ interface DoorwayState {
   notifications: Notification[];
   lastConfirmedShowing: Showing | null;
   lastSyncedAt: string | null;
+  lastLocalRevision: number;
   syncStatus: SyncStatus | null;
   setSyncStatus: (status: SyncStatus) => void;
   loginUser: (user: User) => void;
@@ -198,7 +199,11 @@ function pushNotification(
   notifications: Notification[],
   title: string,
   message: string,
-  conversationId?: string,
+  options?: {
+    conversationId?: string;
+    seekerId?: string;
+    landlordId?: string;
+  },
 ): Notification[] {
   const n: Notification = {
     id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -207,7 +212,9 @@ function pushNotification(
     channels: ["in_app", "email", "sms"],
     read: false,
     createdAt: new Date().toISOString(),
-    conversationId,
+    conversationId: options?.conversationId,
+    seekerId: options?.seekerId,
+    landlordId: options?.landlordId,
   };
   return [n, ...notifications];
 }
@@ -260,6 +267,7 @@ export const useDoorwayStore = create<DoorwayState>()(
       notifications: [],
       lastConfirmedShowing: null,
       lastSyncedAt: null,
+      lastLocalRevision: 0,
       syncStatus: null,
 
       loginUser: (user) =>
@@ -449,6 +457,7 @@ export const useDoorwayStore = create<DoorwayState>()(
           packet,
           status: "SENT",
           sentAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
 
         const listing = get().listings.find((l) => l.id === listingId);
@@ -519,36 +528,44 @@ export const useDoorwayStore = create<DoorwayState>()(
         const showing = get().showings.find((s) => s.id === id);
         if (!showing) return;
         const seeker = resolveSeeker(get().currentUser);
-        const updated = get().showings.map((s) =>
-          s.id === id
-            ? { ...s, status: "ACCEPTED" as const, landlordMessage: message }
-            : s,
-        );
+        const now = new Date().toISOString();
+        const accepted = {
+          ...showing,
+          status: "ACCEPTED" as const,
+          landlordMessage: message,
+          updatedAt: now,
+        };
         set({
-          showings: updated,
+          showings: get().showings.map((s) => (s.id === id ? accepted : s)),
           lastConfirmedShowing:
-            showing.seekerId === seeker.id
-              ? { ...showing, status: "ACCEPTED", landlordMessage: message }
-              : get().lastConfirmedShowing,
+            showing.seekerId === seeker.id ? accepted : get().lastConfirmedShowing,
           notifications: pushNotification(
             get().notifications,
             "Showing accepted",
-            `Showing for ${showing.seekerName} on ${showing.date} confirmed.`,
+            `Your showing for ${showing.date} at ${showing.time} was confirmed. You can now apply for this home.`,
+            { seekerId: showing.seekerId },
           ),
         });
       },
 
       declineShowing: (id, message) => {
+        const now = new Date().toISOString();
         set({
           showings: get().showings.map((s) =>
             s.id === id
-              ? { ...s, status: "DECLINED" as const, landlordMessage: message }
+              ? {
+                  ...s,
+                  status: "DECLINED" as const,
+                  landlordMessage: message,
+                  updatedAt: now,
+                }
               : s,
           ),
           notifications: pushNotification(
             get().notifications,
             "Showing declined",
             message ?? "Showing request was declined.",
+            { seekerId: get().showings.find((s) => s.id === id)?.seekerId },
           ),
         });
       },
@@ -564,6 +581,7 @@ export const useDoorwayStore = create<DoorwayState>()(
         let conversations = get().conversations;
         let messages = get().messages;
         let conversationId: string | undefined;
+        const now = new Date().toISOString();
 
         if (status === "ACCEPTED") {
           const opened = openConversationForApplication(
@@ -582,28 +600,28 @@ export const useDoorwayStore = create<DoorwayState>()(
             senderId: landlord.id,
             senderRole: "LANDLORD",
             text: `Hi ${app.seekerName.split(" ")[0]}, your application for ${listing?.title ?? "the unit"} was accepted. Feel free to message me here if you have questions.`,
-            sentAt: new Date().toISOString(),
+            sentAt: now,
           };
           messages = [...messages, welcome];
         }
 
         const notifTitle =
           status === "ACCEPTED"
-            ? "Application accepted"
+            ? "Application accepted!"
             : status === "DECLINED"
-              ? "Application declined"
+              ? "Application update"
               : "Application updated";
 
         const notifMessage =
           status === "ACCEPTED"
-            ? `Your application for ${listing?.title ?? "the listing"} was accepted. You can now message the landlord.`
+            ? `Great news — your application for ${listing?.title ?? "the listing"} was accepted. Open Messages to chat with your landlord now.`
             : status === "DECLINED"
               ? `Your application for ${listing?.title ?? "the listing"} was not accepted.`
               : `Application status changed to ${status.replace(/_/g, " ")}.`;
 
         set({
           applications: get().applications.map((a) =>
-            a.id === id ? { ...a, status } : a,
+            a.id === id ? { ...a, status, updatedAt: now } : a,
           ),
           conversations,
           messages,
@@ -611,7 +629,10 @@ export const useDoorwayStore = create<DoorwayState>()(
             get().notifications,
             notifTitle,
             notifMessage,
-            conversationId,
+            {
+              conversationId,
+              seekerId: app.seekerId,
+            },
           ),
         });
       },
@@ -642,7 +663,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             get().notifications,
             `New message from ${senderName}`,
             text,
-            conversationId,
+            { conversationId },
           ),
         });
       },
@@ -876,6 +897,7 @@ export const useDoorwayStore = create<DoorwayState>()(
         messages: state.messages,
         notifications: state.notifications,
         lastSyncedAt: state.lastSyncedAt,
+        lastLocalRevision: state.lastLocalRevision ?? 0,
       }),
     },
   ),

@@ -5,6 +5,7 @@ import { AuthGate } from "@/components/layout/auth-gate";
 import { AuthSessionProvider } from "@/components/layout/auth-session-provider";
 import { DemoSyncProvider } from "@/components/layout/demo-sync-provider";
 import { HydrationGate } from "@/components/layout/hydration-gate";
+import { NotificationToast } from "@/components/layout/notification-toast";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import "./globals.css";
 
@@ -51,6 +52,7 @@ export default function RootLayout({
             <HydrationGate>
               <AuthSessionProvider>
                 <AuthGate>
+                  <NotificationToast />
                   <A11yProvider>{children}</A11yProvider>
                 </AuthGate>
               </AuthSessionProvider>
