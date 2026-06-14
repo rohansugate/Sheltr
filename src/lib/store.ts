@@ -21,6 +21,7 @@ import type {
   SeekerConstraints,
   Showing,
   SwipeAction,
+  TenantSession,
   User,
   UserRole,
 } from "./types";
@@ -68,6 +69,7 @@ interface DoorwayState {
   lastSyncedAt: string | null;
   lastLocalRevision: number;
   syncStatus: SyncStatus | null;
+  tenantSessions: Record<string, TenantSession>;
   setSyncStatus: (status: SyncStatus) => void;
   loginUser: (user: User) => void;
   logoutUser: () => void;
@@ -112,12 +114,97 @@ interface DoorwayState {
 const defaultConstraints = mockSeeker.constraints ?? {
   housingSituation: "SHELTER" as const,
   voucherStatus: "HAS_VOUCHER" as const,
-  zipCode: "90011",
+  zipCode: "19104",
   voucherSize: 2,
   maxRent: 1600,
   accessibilityNeeds: false,
   proximityNeeds: [],
 };
+
+const defaultDiscoverFilters: DiscoverFilters = {
+  maxRent: 1600,
+  groundFloorOnly: false,
+  neighborhood: "",
+};
+
+function snapshotTenantSession(state: {
+  onboardingComplete: boolean;
+  constraints: SeekerConstraints | null;
+  likedListings: Listing[];
+  matches: Match[];
+  swipeHistory: SwipeAction[];
+  tutorialSeen: boolean;
+  discoverFilters: DiscoverFilters;
+}): TenantSession {
+  return {
+    onboardingComplete: state.onboardingComplete,
+    constraints: state.constraints,
+    likedListings: state.likedListings,
+    matches: state.matches,
+    swipeHistory: state.swipeHistory,
+    tutorialSeen: state.tutorialSeen,
+    discoverFilters: state.discoverFilters,
+  };
+}
+
+function freshTenantState(): Pick<
+  DoorwayState,
+  | "onboardingComplete"
+  | "constraints"
+  | "likedListings"
+  | "matches"
+  | "swipeHistory"
+  | "deck"
+  | "tutorialSeen"
+  | "discoverFilters"
+> {
+  return {
+    onboardingComplete: false,
+    constraints: null,
+    likedListings: [],
+    matches: [],
+    swipeHistory: [],
+    deck: [],
+    tutorialSeen: false,
+    discoverFilters: { ...defaultDiscoverFilters },
+  };
+}
+
+function applyTenantSession(
+  session: TenantSession,
+  listings: Listing[],
+): Pick<
+  DoorwayState,
+  | "onboardingComplete"
+  | "constraints"
+  | "likedListings"
+  | "matches"
+  | "swipeHistory"
+  | "deck"
+  | "tutorialSeen"
+  | "discoverFilters"
+> {
+  const discoverFilters = session.discoverFilters ?? defaultDiscoverFilters;
+  const constraints = session.constraints;
+  return {
+    onboardingComplete: session.onboardingComplete,
+    constraints: session.constraints,
+    likedListings: session.likedListings,
+    matches: session.matches,
+    swipeHistory: session.swipeHistory,
+    tutorialSeen: session.tutorialSeen,
+    discoverFilters,
+    deck: session.onboardingComplete
+      ? buildDeck(
+          listings,
+          constraints ?? defaultConstraints,
+          session.likedListings,
+          session.matches,
+          discoverFilters,
+        )
+      : [],
+  };
+}
 
 function buildDeck(
   listings: Listing[],
@@ -384,18 +471,50 @@ export const useDoorwayStore = create<DoorwayState>()(
       lastSyncedAt: null,
       lastLocalRevision: 0,
       syncStatus: null,
+      tenantSessions: {},
 
-      loginUser: (user) =>
-        set({
+      loginUser: (user) => {
+        const state = get();
+        const tenantSessions = { ...state.tenantSessions };
+
+        if (state.currentUser?.role === "SEEKER") {
+          tenantSessions[state.currentUser.id] = snapshotTenantSession(state);
+        }
+
+        const base = {
           currentUser: user,
-          role: user.role === "LANDLORD" ? "LANDLORD" : "SEEKER",
-        }),
-      logoutUser: () =>
+          role: (user.role === "LANDLORD" ? "LANDLORD" : "SEEKER") as UserRole,
+          tenantSessions,
+        };
+
+        if (user.role === "SEEKER") {
+          const saved = tenantSessions[user.id];
+          set({
+            ...base,
+            ...(saved
+              ? applyTenantSession(saved, state.listings)
+              : freshTenantState()),
+          });
+          return;
+        }
+
+        set(base);
+      },
+      logoutUser: () => {
+        const state = get();
+        const tenantSessions = { ...state.tenantSessions };
+
+        if (state.currentUser?.role === "SEEKER") {
+          tenantSessions[state.currentUser.id] = snapshotTenantSession(state);
+        }
+
         set({
           currentUser: null,
           role: null,
-          onboardingComplete: false,
-        }),
+          tenantSessions,
+          ...freshTenantState(),
+        });
+      },
       setRole: (role) => set({ role }),
       setSyncStatus: (syncStatus) => set({ syncStatus }),
       setLocale: (locale) => set({ locale }),
@@ -440,6 +559,16 @@ export const useDoorwayStore = create<DoorwayState>()(
           discoverFilters: filters,
           deck: buildDeck(listings, activeConstraints, likedListings, matches, filters),
         });
+
+        const user = get().currentUser;
+        if (user?.role === "SEEKER") {
+          set({
+            tenantSessions: {
+              ...get().tenantSessions,
+              [user.id]: snapshotTenantSession(get()),
+            },
+          });
+        }
       },
 
       refreshDeck: () => {
@@ -1063,7 +1192,7 @@ export const useDoorwayStore = create<DoorwayState>()(
     }),
     {
       name: "doorway-store",
-      version: 6,
+      version: 7,
       migrate: (persisted, version) => {
         const state = persisted as Partial<DoorwayState>;
         const existing = (state.listings ?? []).map((l) => {
@@ -1109,6 +1238,28 @@ export const useDoorwayStore = create<DoorwayState>()(
               }
             : c,
         );
+        const tenantSessions: Record<string, TenantSession> = {
+          ...(state.tenantSessions ?? {}),
+        };
+        if (
+          state.currentUser?.role === "SEEKER" &&
+          !tenantSessions[state.currentUser.id]
+        ) {
+          tenantSessions[state.currentUser.id] = snapshotTenantSession({
+            onboardingComplete: state.onboardingComplete ?? false,
+            constraints: state.constraints ?? null,
+            likedListings: state.likedListings ?? [],
+            matches: state.matches ?? [],
+            swipeHistory: state.swipeHistory ?? [],
+            tutorialSeen: state.tutorialSeen ?? false,
+            discoverFilters: state.discoverFilters ?? {
+              maxRent: 1600,
+              groundFloorOnly: false,
+              neighborhood: "",
+            },
+          });
+        }
+
         return {
           currentUser: state.currentUser ?? null,
           role: state.role ?? null,
@@ -1136,6 +1287,7 @@ export const useDoorwayStore = create<DoorwayState>()(
           conversations,
           messages: state.messages ?? [],
           notifications: state.notifications ?? [],
+          tenantSessions,
         };
       },
       partialize: (state) => ({
@@ -1152,6 +1304,7 @@ export const useDoorwayStore = create<DoorwayState>()(
         likedListings: state.likedListings,
         matches: state.matches,
         swipeHistory: state.swipeHistory,
+        tenantSessions: state.tenantSessions,
         applications: state.applications,
         showings: state.showings,
         conversations: state.conversations,

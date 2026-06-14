@@ -35,6 +35,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
     if (currentUser.role === "LANDLORD" && isTenantPath(pathname)) {
       router.replace("/landlord");
+      return;
+    }
+
+    if (
+      currentUser.role === "SEEKER" &&
+      !onboardingComplete &&
+      pathname !== "/onboarding" &&
+      isTenantPath(pathname)
+    ) {
+      router.replace("/onboarding");
     }
   }, [pathname, currentUser, role, onboardingComplete, router]);
 

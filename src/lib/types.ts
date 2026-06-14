@@ -200,3 +200,14 @@ export interface Match {
   actorId: string;
   createdAt: string;
 }
+
+/** Per-tenant swipe/onboarding state (keyed by user id in the store). */
+export interface TenantSession {
+  onboardingComplete: boolean;
+  constraints: SeekerConstraints | null;
+  likedListings: Listing[];
+  matches: Match[];
+  swipeHistory: SwipeAction[];
+  tutorialSeen: boolean;
+  discoverFilters: DiscoverFilters;
+}
