@@ -14,20 +14,22 @@ export function TutorialOverlay() {
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-6 sm:items-center"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="tutorial-title"
     >
-      <div className="app-shell w-full rounded-2xl bg-background p-6 shadow-xl">
+      <div className="flex w-full max-w-sm flex-col items-center rounded-2xl bg-background px-8 py-10 text-center shadow-xl">
         <h2 id="tutorial-title" className="text-xl font-bold">
           {t(locale, "tutorialTitle")}
         </h2>
-        <p className="mt-2 text-muted-foreground">{t(locale, "tutorialBody")}</p>
+        <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+          {t(locale, "tutorialBody")}
+        </p>
         <Button
           variant="primary"
           size="lg"
-          className="mt-6 w-full"
+          className="mt-8 w-full"
           onClick={dismissTutorial}
         >
           {t(locale, "tutorialDismiss")}
