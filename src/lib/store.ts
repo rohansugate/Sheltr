@@ -38,7 +38,7 @@ import {
 import { SEED_APPLICATIONS, SEED_SHOWINGS } from "./seed-data";
 import type { SyncStatus } from "./demo-sync";
 import { localStateToSyncPayload, mergeDemoPayload } from "./sync-merge";
-import { isDuplicateListing, sortByRelevance } from "./sort-listings";
+import { sortByRelevance } from "./sort-listings";
 import {
   displayName,
   resolveActingLandlordId,
@@ -1227,14 +1227,6 @@ export const useDoorwayStore = create<DoorwayState>()(
         const { currentUser, role } = get();
         const landlordId = resolveActingLandlordId(currentUser, role);
         if (!landlordId) return null;
-        if (
-          isDuplicateListing(get().listings, {
-            landlordId,
-            ...input,
-          })
-        ) {
-          return null;
-        }
         const listing = inputToListing(input, status, landlordId);
         const updatedListings = [listing, ...get().listings];
         applyListingsUpdate(get, set, updatedListings);
@@ -1247,15 +1239,6 @@ export const useDoorwayStore = create<DoorwayState>()(
         if (!landlordId) return false;
         const existing = get().listings.find((l) => l.id === id);
         if (!existing || existing.landlordId !== landlordId) return false;
-        if (
-          isDuplicateListing(
-            get().listings,
-            { landlordId, ...input },
-            id,
-          )
-        ) {
-          return false;
-        }
         const keptImages =
           input.images.length > 0
             ? input.images

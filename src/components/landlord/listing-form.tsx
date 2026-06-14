@@ -117,19 +117,13 @@ export function ListingForm({
     if (mode === "create") {
       const result = saveListing(payload, asDraft ? "DRAFT" : "ACTIVE");
       if (!result) {
-        setErrors({
-          title:
-            "You already have a listing with this title. Change the title or edit the existing listing.",
-        });
+        setErrors({ title: "Sign in as a landlord to publish listings." });
         return;
       }
     } else if (listingId) {
       const ok = updateListing(listingId, payload);
       if (!ok) {
-        setErrors({
-          title:
-            "You already have a listing with this title. Change the title or edit the existing listing.",
-        });
+        setErrors({ title: "Could not save this listing. Try again." });
         return;
       }
       if (!asDraft && existing?.status === "DRAFT") {
