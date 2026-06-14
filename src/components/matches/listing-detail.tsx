@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -50,14 +50,98 @@ export function ListingDetail({
   const [contactMethod, setContactMethod] = useState<ContactMethod>("phone");
   const [contactValue, setContactValue] = useState("");
 
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    const { style } = document.body;
+    const prev = {
+      position: style.position,
+      top: style.top,
+      left: style.left,
+      right: style.right,
+      overflow: style.overflow,
+      width: style.width,
+    };
+
+    style.position = "fixed";
+    style.top = `-${scrollY}px`;
+    style.left = "0";
+    style.right = "0";
+    style.overflow = "hidden";
+    style.width = "100%";
+
+    return () => {
+      style.position = prev.position;
+      style.top = prev.top;
+      style.left = prev.left;
+      style.right = prev.right;
+      style.overflow = prev.overflow;
+      style.width = prev.width;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
+  const canConfirmShowing =
+    showingDate.trim().length > 0 && contactValue.trim().length > 0;
+
+  const handleConfirmShowing = () => {
+    if (!canConfirmShowing) return;
+    onScheduleShowing(
+      showingDate,
+      showingTime,
+      contactMethod,
+      contactValue.trim(),
+    );
+    onClose();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" role="dialog" aria-modal="true" aria-label={listing.title}>
-      <div className="app-shell flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-background sm:rounded-3xl">
-        <div className="relative h-56 shrink-0 bg-muted">
-          <ListingImage src={listing.images[photoIndex] ?? listing.images[0]} alt={listing.title} fill className="object-cover" sizes="430px" />
-          <button type="button" onClick={onClose} className="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-black/50 text-white" aria-label="Close">✕</button>
-        </div>
-        <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-label={listing.title}
+      onClick={onClose}
+    >
+      <div
+        className="app-shell flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-background sm:rounded-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {mode === "view" ? (
+          <div className="relative h-56 shrink-0 bg-muted">
+            <ListingImage
+              src={listing.images[photoIndex] ?? listing.images[0]}
+              alt={listing.title}
+              fill
+              className="object-cover"
+              sizes="430px"
+            />
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-black/50 text-white"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
+            <h3 className="text-xl font-bold">
+              {mode === "showing"
+                ? t(locale, "scheduleShowing")
+                : "Application packet"}
+            </h3>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-5 py-4 [-webkit-overflow-scrolling:touch]">
           {mode === "view" && (
             <>
               <div>
@@ -91,34 +175,66 @@ export function ListingDetail({
           )}
           {mode === "apply" && (
             <>
-              <h3 className="text-xl font-bold">Application packet</h3>
               <Input label={t(locale, "voucherCaseNumber")} value={packet.voucherCaseNumber} onChange={(e) => setPacket({ ...packet, voucherCaseNumber: e.target.value })} required />
               <Input label="Employment" value={packet.employment} onChange={(e) => setPacket({ ...packet, employment: e.target.value })} required />
               <Input label="References" value={packet.references} onChange={(e) => setPacket({ ...packet, references: e.target.value })} required />
-              <div className="flex gap-3 pt-2">
-                <Button variant="outline" size="lg" className="flex-1" onClick={() => setMode("view")}>Back</Button>
-                <Button variant="primary" size="lg" className="flex-1" disabled={!packet.employment || !packet.references || !packet.voucherCaseNumber} onClick={() => { if (onApply(packet)) onClose(); }}>Submit</Button>
-              </div>
             </>
           )}
           {mode === "showing" && (
             <>
-              <h3 className="text-xl font-bold">{t(locale, "scheduleShowing")}</h3>
               <Input label="Date" type="date" value={showingDate} onChange={(e) => setShowingDate(e.target.value)} required />
               <Input label="Time" type="time" value={showingTime} onChange={(e) => setShowingTime(e.target.value)} required />
               <p className="text-sm font-semibold">{t(locale, "contactMethod")}</p>
               <div className="flex gap-2">
-                <Button variant={contactMethod === "phone" ? "primary" : "outline"} size="sm" className="flex-1" onClick={() => setContactMethod("phone")}>{t(locale, "phone")}</Button>
-                <Button variant={contactMethod === "email" ? "primary" : "outline"} size="sm" className="flex-1" onClick={() => setContactMethod("email")}>{t(locale, "email")}</Button>
+                <Button type="button" variant={contactMethod === "phone" ? "primary" : "outline"} size="sm" className="flex-1" onClick={() => setContactMethod("phone")}>{t(locale, "phone")}</Button>
+                <Button type="button" variant={contactMethod === "email" ? "primary" : "outline"} size="sm" className="flex-1" onClick={() => setContactMethod("email")}>{t(locale, "email")}</Button>
               </div>
-              <Input label={contactMethod === "phone" ? "Phone number" : "Email address"} value={contactValue} onChange={(e) => setContactValue(e.target.value)} required />
-              <div className="flex gap-3 pt-2">
-                <Button variant="outline" size="lg" className="flex-1" onClick={() => setMode("view")}>Back</Button>
-                <Button variant="primary" size="lg" className="flex-1" disabled={!showingDate || !contactValue} onClick={() => { onScheduleShowing(showingDate, showingTime, contactMethod, contactValue); onClose(); }}>Confirm</Button>
-              </div>
+              <Input label={contactMethod === "phone" ? "Phone number" : "Email address"} value={contactValue} onChange={(e) => setContactValue(e.target.value)} required inputMode={contactMethod === "phone" ? "tel" : "email"} />
             </>
           )}
         </div>
+        {mode === "apply" && (
+          <div
+            className="flex shrink-0 gap-3 border-t border-border px-5 py-4"
+            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          >
+            <Button type="button" variant="outline" size="lg" className="flex-1" onClick={() => setMode("view")}>
+              Back
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="lg"
+              className="flex-1"
+              disabled={!packet.employment || !packet.references || !packet.voucherCaseNumber}
+              onClick={() => {
+                if (onApply(packet)) onClose();
+              }}
+            >
+              Submit
+            </Button>
+          </div>
+        )}
+        {mode === "showing" && (
+          <div
+            className="flex shrink-0 gap-3 border-t border-border px-5 py-4"
+            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          >
+            <Button type="button" variant="outline" size="lg" className="flex-1" onClick={() => setMode("view")}>
+              Back
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="lg"
+              className="flex-1"
+              disabled={!canConfirmShowing}
+              onClick={handleConfirmShowing}
+            >
+              Confirm
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
