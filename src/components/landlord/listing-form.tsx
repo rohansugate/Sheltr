@@ -117,13 +117,19 @@ export function ListingForm({
     if (mode === "create") {
       const result = saveListing(payload, asDraft ? "DRAFT" : "ACTIVE");
       if (!result) {
-        setErrors({ title: "A similar listing already exists" });
+        setErrors({
+          title:
+            "You already have a listing with this title. Change the title or edit the existing listing.",
+        });
         return;
       }
     } else if (listingId) {
       const ok = updateListing(listingId, payload);
       if (!ok) {
-        setErrors({ title: "A similar listing already exists" });
+        setErrors({
+          title:
+            "You already have a listing with this title. Change the title or edit the existing listing.",
+        });
         return;
       }
       if (!asDraft && existing?.status === "DRAFT") {

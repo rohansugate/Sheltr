@@ -41,6 +41,7 @@ import { localStateToSyncPayload, mergeDemoPayload } from "./sync-merge";
 import { isDuplicateListing, sortByRelevance } from "./sort-listings";
 import {
   displayName,
+  resolveActingLandlordId,
   resolveLandlord,
   resolveLandlordForListing,
   resolveSeeker,
@@ -1223,29 +1224,33 @@ export const useDoorwayStore = create<DoorwayState>()(
       },
 
       saveListing: (input, status) => {
-        const landlord = resolveLandlord(get().currentUser);
+        const { currentUser, role } = get();
+        const landlordId = resolveActingLandlordId(currentUser, role);
+        if (!landlordId) return null;
         if (
           isDuplicateListing(get().listings, {
-            landlordId: landlord.id,
+            landlordId,
             ...input,
           })
         ) {
           return null;
         }
-        const listing = inputToListing(input, status, landlord.id);
+        const listing = inputToListing(input, status, landlordId);
         const updatedListings = [listing, ...get().listings];
         applyListingsUpdate(get, set, updatedListings);
         return listing;
       },
 
       updateListing: (id, input) => {
-        const landlord = resolveLandlord(get().currentUser);
+        const { currentUser, role } = get();
+        const landlordId = resolveActingLandlordId(currentUser, role);
+        if (!landlordId) return false;
         const existing = get().listings.find((l) => l.id === id);
-        if (!existing) return false;
+        if (!existing || existing.landlordId !== landlordId) return false;
         if (
           isDuplicateListing(
             get().listings,
-            { landlordId: landlord.id, ...input },
+            { landlordId, ...input },
             id,
           )
         ) {
@@ -1258,7 +1263,7 @@ export const useDoorwayStore = create<DoorwayState>()(
         const updatedListings = get().listings.map((l) =>
           l.id === id
             ? {
-                ...inputToListing(input, l.status, landlord.id, id, existing),
+                ...inputToListing(input, l.status, landlordId, id, existing),
                 images: keptImages.slice(0, 5),
               }
             : l,

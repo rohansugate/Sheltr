@@ -52,7 +52,12 @@ export function sortByRelevance(
   });
 }
 
-/** Dedup: same landlord + zip + rent + beds + normalized title */
+/** Built-in demo listings (listing-1 … listing-30) — not landlord-owned. */
+export function isBuiltInSeedListing(id: string) {
+  return /^listing-([1-9]|[1-2]\d|30)$/.test(id);
+}
+
+/** Block only when this landlord already has an active/draft listing with the same title. */
 export function isDuplicateListing(
   existing: Listing[],
   candidate: {
@@ -64,10 +69,18 @@ export function isDuplicateListing(
   },
   excludeId?: string,
 ): boolean {
-  const key = (l: Listing) =>
-    `${l.landlordId}|${l.zipCode}|${l.monthlyRent}|${l.bedrooms}|${l.title.trim().toLowerCase()}`;
-  const candidateKey = `${candidate.landlordId}|${candidate.zipCode}|${candidate.monthlyRent}|${candidate.bedrooms}|${candidate.title.trim().toLowerCase()}`;
+  const landlordId = candidate.landlordId;
+  if (!landlordId) return false;
+
+  const normalizedTitle = candidate.title.trim().toLowerCase();
+  if (!normalizedTitle) return false;
+
   return existing.some(
-    (l) => l.id !== excludeId && l.status !== "INACTIVE" && key(l) === candidateKey,
+    (l) =>
+      l.id !== excludeId &&
+      l.status !== "INACTIVE" &&
+      !isBuiltInSeedListing(l.id) &&
+      l.landlordId === landlordId &&
+      l.title.trim().toLowerCase() === normalizedTitle,
   );
 }

@@ -1,5 +1,5 @@
 import { mockLandlord, mockSeeker } from "./mock-data";
-import type { Listing, User } from "./types";
+import type { Listing, User, UserRole } from "./types";
 
 export function resolveSeeker(currentUser: User | null): User {
   if (currentUser?.role === "SEEKER") return currentUser;
@@ -9,6 +9,16 @@ export function resolveSeeker(currentUser: User | null): User {
 export function resolveLandlord(currentUser: User | null): User {
   if (currentUser?.role === "LANDLORD") return currentUser;
   return mockLandlord;
+}
+
+/** Prefer the signed-in landlord; demo role view falls back to mock landlord. */
+export function resolveActingLandlordId(
+  currentUser: User | null,
+  role: UserRole | null,
+): string | null {
+  if (currentUser?.role === "LANDLORD") return currentUser.id;
+  if (role === "LANDLORD") return mockLandlord.id;
+  return null;
 }
 
 export function resolveLandlordForListing(
