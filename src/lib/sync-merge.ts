@@ -147,16 +147,58 @@ function mergeMessages(a: ChatMessage[], b: ChatMessage[]): ChatMessage[] {
   return mergeById(a, b).sort((x, y) => x.sentAt.localeCompare(y.sentAt));
 }
 
+/** Demo listings to purge from sync and local storage. */
+export function isBlockedListingTitle(title: string): boolean {
+  const normalized = title.trim().toLowerCase();
+  return (
+    normalized === "ruddy tyrone" ||
+    normalized === "tyrone" ||
+    normalized.includes("ruddy tyrone")
+  );
+}
+
+function blockedListingIds(listings: Listing[]): Set<string> {
+  return new Set(
+    listings.filter((l) => isBlockedListingTitle(l.title)).map((l) => l.id),
+  );
+}
+
+/** Remove blocked listings and related applications, showings, and messages. */
+export function sanitizeDemoPayload(payload: DemoSyncPayload): DemoSyncPayload {
+  const removed = blockedListingIds(payload.listings);
+  if (removed.size === 0) return payload;
+
+  const listings = payload.listings.filter((l) => !removed.has(l.id));
+  const conversations = payload.conversations.filter(
+    (c) => !removed.has(c.listingId),
+  );
+  const conversationIds = new Set(conversations.map((c) => c.id));
+
+  return {
+    ...payload,
+    listings,
+    applications: payload.applications.filter((a) => !removed.has(a.listingId)),
+    showings: payload.showings.filter((s) => !removed.has(s.listingId)),
+    conversations,
+    messages: payload.messages.filter((m) =>
+      conversationIds.has(m.conversationId),
+    ),
+  };
+}
+
 /** Combine two sync snapshots — used on server write and client pull. */
 export function mergeDemoPayload(
   base: DemoSyncPayload | null,
   incoming: DemoSyncPayload,
 ): DemoSyncPayload {
   if (!base) {
-    return { ...incoming, updatedAt: new Date().toISOString() };
+    return sanitizeDemoPayload({
+      ...incoming,
+      updatedAt: new Date().toISOString(),
+    });
   }
 
-  return {
+  return sanitizeDemoPayload({
     listings: mergeListings(base.listings, incoming.listings),
     applications: mergeApplications(base.applications, incoming.applications),
     showings: mergeShowings(base.showings, incoming.showings),
@@ -164,7 +206,7 @@ export function mergeDemoPayload(
     messages: mergeMessages(base.messages, incoming.messages),
     notifications: mergeNotifications(base.notifications, incoming.notifications),
     updatedAt: new Date().toISOString(),
-  };
+  });
 }
 
 export function localStateToSyncPayload(state: {

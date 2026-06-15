@@ -37,7 +37,7 @@ import {
 } from "./mock-data";
 import { SEED_APPLICATIONS, SEED_SHOWINGS } from "./seed-data";
 import type { SyncStatus } from "./demo-sync";
-import { localStateToSyncPayload, mergeDemoPayload } from "./sync-merge";
+import { localStateToSyncPayload, mergeDemoPayload, isBlockedListingTitle, sanitizeDemoPayload } from "./sync-merge";
 import { sortByRelevance } from "./sort-listings";
 import {
   displayName,
@@ -1197,6 +1197,9 @@ export const useDoorwayStore = create<DoorwayState>()(
           payload,
         );
         const { constraints, likedListings, matches, discoverFilters } = local;
+        const cleanedLiked = likedListings.filter(
+          (l) => !isBlockedListingTitle(l.title),
+        );
         set({
           listings: merged.listings,
           applications: merged.applications,
@@ -1204,11 +1207,12 @@ export const useDoorwayStore = create<DoorwayState>()(
           conversations: merged.conversations,
           messages: merged.messages,
           notifications: merged.notifications,
+          likedListings: cleanedLiked,
           lastSyncedAt: merged.updatedAt,
           deck: buildDeck(
             merged.listings,
             constraints ?? defaultConstraints,
-            likedListings,
+            cleanedLiked,
             matches,
             discoverFilters,
           ),
@@ -1322,7 +1326,7 @@ export const useDoorwayStore = create<DoorwayState>()(
     }),
     {
       name: "doorway-store",
-      version: 9,
+      version: 10,
       migrate: (persisted, version) => {
         const state = persisted as Partial<DoorwayState>;
         const existing = (state.listings ?? []).map((l) => {
@@ -1403,6 +1407,19 @@ export const useDoorwayStore = create<DoorwayState>()(
           };
         }
 
+        const sanitized = sanitizeDemoPayload({
+          listings: merged,
+          applications,
+          showings,
+          conversations,
+          messages: state.messages ?? [],
+          notifications: state.notifications ?? [],
+          updatedAt: new Date().toISOString(),
+        });
+        const likedListings = (state.likedListings ?? []).filter(
+          (l) => !isBlockedListingTitle(l.title),
+        );
+
         return {
           currentUser: state.currentUser ?? null,
           role: state.role ?? null,
@@ -1421,15 +1438,15 @@ export const useDoorwayStore = create<DoorwayState>()(
           },
           onboardingComplete: state.onboardingComplete ?? false,
           constraints: state.constraints ?? null,
-          listings: merged,
-          likedListings: state.likedListings ?? [],
+          listings: sanitized.listings,
+          likedListings,
           matches: state.matches ?? [],
           swipeHistory: state.swipeHistory ?? [],
-          applications,
-          showings,
-          conversations,
-          messages: state.messages ?? [],
-          notifications: state.notifications ?? [],
+          applications: sanitized.applications,
+          showings: sanitized.showings,
+          conversations: sanitized.conversations,
+          messages: sanitized.messages,
+          notifications: sanitized.notifications,
           tenantSessions,
           landlordSessions,
           seenLandlordApplicationIds: state.seenLandlordApplicationIds ?? [],

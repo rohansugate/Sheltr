@@ -1,5 +1,5 @@
 import type { DemoSyncPayload } from "./types";
-import { mergeDemoPayload } from "./sync-merge";
+import { mergeDemoPayload, sanitizeDemoPayload } from "./sync-merge";
 
 export const DEMO_SYNC_KEY = process.env.DOORWAY_DEMO_ROOM ?? "doorway-hackathon";
 
@@ -40,14 +40,30 @@ export function getSyncStorage(): SyncStorage {
 }
 
 export async function readDemoState(): Promise<DemoSyncPayload | null> {
+  let state: DemoSyncPayload | null = null;
   if (hasRedisEnv()) {
     try {
-      return await redisGet();
+      state = await redisGet();
     } catch {
-      return memoryGet();
+      state = memoryGet();
+    }
+  } else {
+    state = memoryGet();
+  }
+  if (!state) return null;
+
+  const sanitized = sanitizeDemoPayload(state);
+  if (
+    hasRedisEnv() &&
+    sanitized.listings.length !== state.listings.length
+  ) {
+    try {
+      await redisSet(sanitized);
+    } catch {
+      memorySet(sanitized);
     }
   }
-  return memoryGet();
+  return sanitized;
 }
 
 export async function writeDemoState(
