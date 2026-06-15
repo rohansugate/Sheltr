@@ -149,9 +149,9 @@ export default function ProfilePage() {
           ) : (
             <p className="text-sm text-muted-foreground">Complete onboarding first.</p>
           )}
-          <Link href="/onboarding" className="mt-4 block">
+          <Link href="/onboarding?edit=1" className="mt-4 block">
             <Button variant="outline" size="sm" className="w-full">
-              Edit Preferences
+              {t(locale, "editPreferences")}
             </Button>
           </Link>
         </section>

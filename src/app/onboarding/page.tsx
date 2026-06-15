@@ -1,23 +1,33 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { OnboardingForm } from "@/components/onboarding/onboarding-form";
 import { useDoorwayStore } from "@/lib/store";
 
-export default function OnboardingPage() {
+function OnboardingContent() {
   const router = useRouter();
-  const { onboardingComplete } = useDoorwayStore();
+  const searchParams = useSearchParams();
+  const editMode = searchParams.get("edit") === "1";
+  const onboardingComplete = useDoorwayStore((s) => s.onboardingComplete);
 
   useEffect(() => {
-    if (onboardingComplete) {
+    if (onboardingComplete && !editMode) {
       router.replace("/discover");
     }
-  }, [onboardingComplete, router]);
+  }, [onboardingComplete, editMode, router]);
 
+  if (onboardingComplete && !editMode) return null;
+
+  return <OnboardingForm editMode={editMode} />;
+}
+
+export default function OnboardingPage() {
   return (
     <div className="app-shell doorway-gradient flex min-h-dvh flex-col">
-      <OnboardingForm />
+      <Suspense fallback={null}>
+        <OnboardingContent />
+      </Suspense>
     </div>
   );
 }

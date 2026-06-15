@@ -67,6 +67,11 @@ export function ListingCard({
           {listing.isSection8Approved && (
             <Badge variant="success">{t(locale, "section8")}</Badge>
           )}
+          {listing.source === "ZILLOW" && !listing.isSection8Approved && (
+            <Badge variant="outline" className="bg-background/90">
+              Zillow
+            </Badge>
+          )}
           {listing.landlordVerified && (
             <Badge variant="outline" className="bg-background/90">
               {t(locale, "landlordVerified")}

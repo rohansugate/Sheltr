@@ -1,4 +1,5 @@
 import type { Listing, SeekerConstraints } from "./types";
+import { builtInListingIds } from "./section8-listings";
 
 export function scoreListing(
   listing: Listing,
@@ -52,9 +53,9 @@ export function sortByRelevance(
   });
 }
 
-/** Built-in demo listings (listing-1 … listing-30) — not landlord-owned. */
+/** Built-in demo listings from Section 8 seed data — not landlord-owned. */
 export function isBuiltInSeedListing(id: string) {
-  return /^listing-([1-9]|[1-2]\d|30)$/.test(id);
+  return builtInListingIds().has(id);
 }
 
 /** Block only when this landlord already has an active/draft listing with the same title. */

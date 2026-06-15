@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { DoorwayHeader } from "@/components/layout/doorway-header";
 import { Button } from "@/components/ui/button";
 import { useDoorwayStore } from "@/lib/store";
 import type { HousingSituation, SeekerConstraints, VoucherStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 import { CA_TRANSIT_OPTIONS } from "@/lib/neighborhoods";
 
@@ -105,18 +107,23 @@ function ToggleButton({
   );
 }
 
-export function OnboardingForm() {
-  const { setConstraints, completeOnboarding } = useDoorwayStore();
+export function OnboardingForm({ editMode = false }: { editMode?: boolean }) {
+  const router = useRouter();
+  const locale = useDoorwayStore((s) => s.locale);
+  const existing = useDoorwayStore((s) => s.constraints);
+  const { setConstraints, completeOnboarding, refreshDeck, setDiscoverFilters } = useDoorwayStore();
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState<SeekerConstraints>({
-    housingSituation: "SHELTER",
-    voucherStatus: "HAS_VOUCHER",
-    zipCode: "90011",
-    voucherSize: 2,
-    maxRent: 4000,
-    accessibilityNeeds: false,
-    proximityNeeds: [],
-  });
+  const [form, setForm] = useState<SeekerConstraints>(
+    existing ?? {
+      housingSituation: "SHELTER",
+      voucherStatus: "HAS_VOUCHER",
+      zipCode: "90011",
+      voucherSize: 2,
+      maxRent: 4000,
+      accessibilityNeeds: false,
+      proximityNeeds: [],
+    },
+  );
 
   const totalSteps = 4;
   const isLast = step === totalSteps - 1;
@@ -124,7 +131,16 @@ export function OnboardingForm() {
   const handleNext = () => {
     if (isLast) {
       setConstraints(form);
-      completeOnboarding();
+      if (editMode) {
+        setDiscoverFilters({
+          maxRent: form.maxRent,
+          groundFloorOnly: form.accessibilityNeeds,
+        });
+        refreshDeck();
+        router.push("/profile");
+      } else {
+        completeOnboarding();
+      }
     } else {
       setStep(step + 1);
     }
@@ -139,7 +155,7 @@ export function OnboardingForm() {
         />
       </div>
 
-      <DoorwayHeader subtitle="Getting Started" />
+      <DoorwayHeader subtitle={editMode ? t(locale, "editPreferences") : "Getting Started"} />
 
       <div className="flex flex-1 flex-col px-6 pb-6">
         {step === 0 && (
@@ -194,6 +210,25 @@ export function OnboardingForm() {
               <div className="flex flex-col gap-4">
                 <div>
                   <label className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+                    Your Zip Code
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={5}
+                    value={form.zipCode}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        zipCode: e.target.value.replace(/\D/g, "").slice(0, 5),
+                      })
+                    }
+                    className="mt-2 w-full rounded-2xl border border-border bg-card px-4 py-3.5 text-base outline-none focus:border-foreground"
+                    placeholder="90011"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
                     Voucher Bedroom Size
                   </label>
                   <select
@@ -217,7 +252,7 @@ export function OnboardingForm() {
                     <input
                       type="number"
                       min={600}
-                      max={3500}
+                      max={4000}
                       step={50}
                       value={form.maxRent}
                       onChange={(e) => setForm({ ...form, maxRent: Number(e.target.value) })}
@@ -303,7 +338,7 @@ export function OnboardingForm() {
             </Button>
           )}
           <Button variant="primary" size="lg" className="flex-1 rounded-full" onClick={handleNext}>
-            {isLast ? "Start Discovering" : "Continue"}
+            {isLast ? (editMode ? t(locale, "savePreferences") : "Start Discovering") : "Continue"}
           </Button>
         </div>
       </div>

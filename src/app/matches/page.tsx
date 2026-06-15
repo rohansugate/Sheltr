@@ -16,10 +16,13 @@ import { useDoorwayStore } from "@/lib/store";
 import type { Listing } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
+const COMPARE_STORAGE_KEY = "sheltr-compare-ids";
+
 export default function MatchesPage() {
   const likedListings = useDoorwayStore((s) => s.likedListings);
   const locale = useDoorwayStore((s) => s.locale);
   const submitApplication = useDoorwayStore((s) => s.submitApplication);
+  const showUiFeedback = useDoorwayStore((s) => s.showUiFeedback);
   const scheduleShowing = useDoorwayStore((s) => s.scheduleShowing);
   const canApply = useDoorwayStore((s) => s.canApply);
   const getShowingForListing = useDoorwayStore((s) => s.getShowingForListing);
@@ -31,10 +34,26 @@ export default function MatchesPage() {
   const [tab, setTab] = useState<"list" | "map" | "compare">("list");
   const [selected, setSelected] = useState<Listing | null>(null);
   const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [compareReady, setCompareReady] = useState(false);
 
   useEffect(() => {
     markSeekerApplicationUpdatesSeen();
   }, [markSeekerApplicationUpdatesSeen]);
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(COMPARE_STORAGE_KEY);
+      if (saved) setCompareIds(JSON.parse(saved) as string[]);
+    } catch {
+      /* ignore */
+    }
+    setCompareReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!compareReady) return;
+    sessionStorage.setItem(COMPARE_STORAGE_KEY, JSON.stringify(compareIds));
+  }, [compareIds, compareReady]);
 
   const getAppStatus = (listingId: string) =>
     applications.find((a) => a.listingId === listingId)?.status;
@@ -60,6 +79,9 @@ export default function MatchesPage() {
   const compareListings = compareIds
     .map((id) => likedListings.find((l) => l.id === id))
     .filter((l): l is Listing => Boolean(l));
+
+  const showCompareTable = tab === "compare" && compareListings.length >= 2;
+  const showPicker = tab !== "compare" || compareListings.length < 2;
 
   return (
     <AppShell>
@@ -87,10 +109,11 @@ export default function MatchesPage() {
           {tab === "map" && <MatchesMap listings={likedListings} onSelect={setSelected} />}
           {tab === "compare" && (
             <div className="flex flex-col gap-4 px-4 pb-2">
-              {compareListings.length >= 2 ? (
+              {showCompareTable ? (
                 <ListingCompare
                   listings={compareListings}
                   constraints={constraints}
+                  locale={locale}
                   getAppStatus={getAppStatus}
                   onView={setSelected}
                   onRemove={(id) => setCompareIds((prev) => prev.filter((x) => x !== id))}
@@ -98,13 +121,13 @@ export default function MatchesPage() {
               ) : (
                 <p className="text-sm text-muted-foreground">
                   {compareListings.length === 1
-                    ? "Select one more listing to compare side by side."
+                    ? t(locale, "compareSelectOneMore")
                     : t(locale, "compareSelect")}
                 </p>
               )}
             </div>
           )}
-          {(tab !== "compare" || compareIds.length < 3) && (
+          {showPicker && (
             <ul className="flex flex-col gap-3 px-4 py-4">
               {likedListings.map((listing) => {
                 const status = getAppStatus(listing.id);
@@ -148,7 +171,16 @@ export default function MatchesPage() {
           showing={getShowingForListing(selected.id)}
           canApply={canApply(selected.id)}
           onClose={() => setSelected(null)}
-          onApply={(packet) => submitApplication(selected.id, packet)}
+          onApply={(packet) => {
+            const ok = submitApplication(selected.id, packet);
+            if (ok) {
+              showUiFeedback(t(locale, "applicationSent"), "success");
+              setSelected(null);
+            } else {
+              showUiFeedback(t(locale, "applyFailed"), "error");
+            }
+            return ok;
+          }}
           onScheduleShowing={(date, time, contactMethod, contactValue) =>
             scheduleShowing(selected.id, date, time, contactMethod, contactValue)
           }

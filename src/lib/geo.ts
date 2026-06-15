@@ -47,10 +47,29 @@ export function zipToCoords(zipCode: string): {
     "95202": { lat: 37.9577, lng: -121.2908 },
     "93301": { lat: 35.3733, lng: -119.0187 },
     "94122": { lat: 37.7599, lng: -122.4849 },
+    "90003": { lat: 33.964, lng: -118.273 },
+    "90005": { lat: 34.059, lng: -118.301 },
     "90032": { lat: 34.0689, lng: -118.178 },
+    "90034": { lat: 34.028, lng: -118.402 },
     "93001": { lat: 34.2746, lng: -119.229 },
     "95354": { lat: 37.6391, lng: -120.9969 },
   };
   const c = coords[zipCode] ?? { lat: 34.0522, lng: -118.2437 };
   return { latitude: c.lat, longitude: c.lng };
+}
+
+/** Great-circle distance in miles between two lat/lng points. */
+export function distanceMilesBetween(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const lat1 = toRad(a.latitude);
+  const lat2 = toRad(b.latitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 3958.8 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }

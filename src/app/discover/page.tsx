@@ -9,17 +9,26 @@ import { DiscoverFilters } from "@/components/discover/discover-filters";
 import { SwipeDeck } from "@/components/discover/swipe-deck";
 import { TutorialOverlay } from "@/components/discover/tutorial-overlay";
 import { ShowingConfirmation } from "@/components/matches/showing-confirmation";
+import { Button } from "@/components/ui/button";
 import { SEEKER_DECK_SIZE } from "@/lib/mock-data";
+import { t } from "@/lib/i18n";
 import { useDoorwayStore } from "@/lib/store";
 
 export default function DiscoverPage() {
   const router = useRouter();
+  const locale = useDoorwayStore((s) => s.locale);
   const onboardingComplete = useDoorwayStore((s) => s.onboardingComplete);
   const constraints = useDoorwayStore((s) => s.constraints);
   const completeOnboarding = useDoorwayStore((s) => s.completeOnboarding);
   const refreshDeck = useDoorwayStore((s) => s.refreshDeck);
+  const fetchListingsByZip = useDoorwayStore((s) => s.fetchListingsByZip);
+  const listingsFetchStatus = useDoorwayStore((s) => s.listingsFetchStatus);
+  const listingsSourceZip = useDoorwayStore((s) => s.listingsSourceZip);
+  const listingsMeta = useDoorwayStore((s) => s.listingsMeta);
   const deck = useDoorwayStore((s) => s.deck);
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const zip = constraints?.zipCode ?? "90011";
 
   useEffect(() => {
     if (!onboardingComplete && !constraints) {
@@ -27,27 +36,65 @@ export default function DiscoverPage() {
       return;
     }
     if (!onboardingComplete && constraints) completeOnboarding();
-    refreshDeck();
-  }, [onboardingComplete, constraints, router, completeOnboarding, refreshDeck]);
+  }, [onboardingComplete, constraints, router, completeOnboarding]);
 
-  const zip = constraints?.zipCode ?? "90011";
+  useEffect(() => {
+    if (!constraints?.zipCode) return;
+    if (listingsSourceZip === constraints.zipCode && listingsFetchStatus === "ready") {
+      refreshDeck();
+      return;
+    }
+    void fetchListingsByZip();
+  }, [
+    constraints?.zipCode,
+    constraints?.maxRent,
+    constraints?.voucherSize,
+    listingsSourceZip,
+    listingsFetchStatus,
+    fetchListingsByZip,
+    refreshDeck,
+  ]);
+
+  const subtitle =
+    listingsFetchStatus === "loading"
+      ? t(locale, "searchingListings")
+      : `${t(locale, "section8Near")} ${zip}`;
 
   return (
     <AppShell>
-      <DoorwayHeader subtitle={`Section 8 near ${zip}`} />
+      <DoorwayHeader subtitle={subtitle} />
       <RoleSwitcher compact />
 
       <div className="flex flex-1 flex-col px-5 pb-2">
+        {listingsMeta && listingsFetchStatus === "ready" && (
+          <p className="mb-2 text-xs text-muted-foreground">
+            {listingsMeta.affordableHousing} Section 8
+            {listingsMeta.zillow > 0 ? ` · ${listingsMeta.zillow} from Zillow` : ""}
+            {!listingsMeta.zillowConfigured ? ` · ${t(locale, "zillowSetupHint")}` : ""}
+          </p>
+        )}
+
+        {listingsFetchStatus === "error" && (
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2">
+            <p className="text-xs text-destructive">{t(locale, "listingSearchFailed")}</p>
+            <Button variant="outline" size="sm" onClick={() => void fetchListingsByZip()}>
+              {t(locale, "retry")}
+            </Button>
+          </div>
+        )}
+
         <div className="mb-3 flex items-center justify-between">
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            {deck.length} of {SEEKER_DECK_SIZE} homes
+            {listingsFetchStatus === "loading"
+              ? t(locale, "loadingHomes")
+              : `${deck.length} of ${SEEKER_DECK_SIZE} homes`}
           </p>
           <button
             type="button"
             onClick={() => setFiltersOpen((o) => !o)}
             className="text-xs font-medium tracking-wide text-muted-foreground uppercase hover:text-foreground"
           >
-            {filtersOpen ? "Hide filters" : "Filters"}
+            {filtersOpen ? t(locale, "hideFilters") : t(locale, "filters")}
           </button>
         </div>
 

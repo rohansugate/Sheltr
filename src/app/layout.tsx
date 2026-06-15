@@ -5,6 +5,7 @@ import { AuthGate } from "@/components/layout/auth-gate";
 import { AuthSessionProvider } from "@/components/layout/auth-session-provider";
 import { DemoSyncProvider } from "@/components/layout/demo-sync-provider";
 import { HydrationGate } from "@/components/layout/hydration-gate";
+import { ActionFeedbackToast } from "@/components/layout/action-feedback";
 import { NotificationToast } from "@/components/layout/notification-toast";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import "./globals.css";
@@ -34,8 +35,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
   themeColor: "#faf9f7",
 };
 
@@ -53,6 +54,7 @@ export default function RootLayout({
               <AuthSessionProvider>
                 <AuthGate>
                   <NotificationToast />
+                  <ActionFeedbackToast />
                   <A11yProvider>{children}</A11yProvider>
                 </AuthGate>
               </AuthSessionProvider>

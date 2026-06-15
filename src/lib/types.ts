@@ -2,7 +2,7 @@ export type UserRole = "SEEKER" | "LANDLORD" | "ADMIN";
 
 export type AccountStatus = "PENDING_CLAIM" | "ACTIVE" | "INACTIVE";
 
-export type ListingSource = "MANUAL" | "IMPORTED" | "PLATFORM";
+export type ListingSource = "MANUAL" | "IMPORTED" | "PLATFORM" | "ZILLOW";
 
 export type ListingStatus = "ACTIVE" | "PENDING_REVIEW" | "INACTIVE" | "DRAFT";
 
@@ -76,6 +76,9 @@ export interface Listing {
   status: ListingStatus;
   analytics: ListingAnalytics;
   updatedAt?: string;
+  petsAllowed?: boolean;
+  utilitiesIncluded?: string;
+  availableDate?: string;
 }
 
 export interface ListingInput {

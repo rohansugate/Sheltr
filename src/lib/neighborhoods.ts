@@ -40,7 +40,9 @@ export const CA_NEIGHBORHOODS: Record<string, string[]> = {
   "95202": ["Waterfront", "Miracle Mile"],
   "93301": ["Downtown", "Oleander"],
   "94122": ["Sunset District", "Parkside"],
-  "90032": ["El Sereno", "City Terrace"],
+  "90003": ["South LA", "Vermont Knolls"],
+  "90005": ["Koreatown", "Wilshire Center"],
+  "90034": ["Palms", "Culver City adj."],
   "93001": ["Avenue District", "Westside"],
   "95354": ["College Area", "Downtown Modesto"],
 };

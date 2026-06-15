@@ -38,7 +38,8 @@ import {
 import { SEED_APPLICATIONS, SEED_SHOWINGS } from "./seed-data";
 import type { SyncStatus } from "./demo-sync";
 import { localStateToSyncPayload, mergeDemoPayload, isBlockedListingTitle, sanitizeDemoPayload } from "./sync-merge";
-import { sortByRelevance } from "./sort-listings";
+import { sortByRelevance, isBuiltInSeedListing } from "./sort-listings";
+import { rehydrateLikedListings } from "./rehydrate-listings";
 import {
   displayName,
   resolveActingLandlordId,
@@ -81,6 +82,14 @@ interface DoorwayState {
   seenLandlordShowingIds: string[];
   seenSeekerApplicationIds: string[];
   seenSeekerShowingIds: string[];
+  uiFeedback: { message: string; type: "error" | "success" } | null;
+  listingsFetchStatus: "idle" | "loading" | "ready" | "error";
+  listingsSourceZip: string | null;
+  listingsMeta: {
+    affordableHousing: number;
+    zillow: number;
+    zillowConfigured: boolean;
+  } | null;
   setSyncStatus: (status: SyncStatus) => void;
   loginUser: (user: User) => void;
   logoutUser: () => void;
@@ -92,6 +101,7 @@ interface DoorwayState {
   setA11y: (a11y: Partial<A11ySettings>) => void;
   setConstraints: (constraints: SeekerConstraints) => void;
   completeOnboarding: () => void;
+  fetchListingsByZip: () => Promise<void>;
   refreshDeck: () => void;
   swipe: (listingId: string, direction: "left" | "right") => void;
   undoSwipe: () => void;
@@ -121,6 +131,8 @@ interface DoorwayState {
   publishListing: (id: string) => void;
   deactivateListing: (listingId: string) => void;
   removeListing: (listingId: string) => void;
+  showUiFeedback: (message: string, type: "error" | "success") => void;
+  clearUiFeedback: () => void;
   reset: () => void;
 }
 
@@ -219,10 +231,11 @@ function applyTenantSession(
 > {
   const discoverFilters = session.discoverFilters ?? defaultDiscoverFilters;
   const constraints = session.constraints;
+  const likedListings = rehydrateLikedListings(session.likedListings, listings);
   return {
     onboardingComplete: session.onboardingComplete,
     constraints: session.constraints,
-    likedListings: session.likedListings,
+    likedListings,
     matches: session.matches,
     swipeHistory: session.swipeHistory,
     tutorialSeen: session.tutorialSeen,
@@ -231,7 +244,7 @@ function applyTenantSession(
       ? buildDeck(
           listings,
           constraints ?? defaultConstraints,
-          session.likedListings,
+          likedListings,
           session.matches,
           discoverFilters,
         )
@@ -275,12 +288,14 @@ function applyListingsUpdate(
   updatedListings: Listing[],
 ) {
   const { constraints, likedListings, matches, discoverFilters } = get();
+  const freshLiked = rehydrateLikedListings(likedListings, updatedListings);
   set({
     listings: updatedListings,
+    likedListings: freshLiked,
     deck: buildDeck(
       updatedListings,
       constraints ?? defaultConstraints,
-      likedListings,
+      freshLiked,
       matches,
       discoverFilters,
     ),
@@ -337,7 +352,7 @@ function pushNotification(
     id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     title,
     message,
-    channels: ["in_app", "email", "sms"],
+    channels: ["in_app"],
     read: false,
     createdAt: new Date().toISOString(),
     conversationId: options.conversationId,
@@ -490,7 +505,7 @@ export const useDoorwayStore = create<DoorwayState>()(
       darkMode: false,
       tutorialSeen: false,
       a11y: { largeText: false, highContrast: false, reduceMotion: false },
-      discoverFilters: { maxRent: 1600, groundFloorOnly: false, neighborhood: "" },
+      discoverFilters: { ...defaultDiscoverFilters },
       onboardingComplete: false,
       constraints: null,
       listings: mockListings,
@@ -513,6 +528,13 @@ export const useDoorwayStore = create<DoorwayState>()(
       seenLandlordShowingIds: [],
       seenSeekerApplicationIds: [],
       seenSeekerShowingIds: [],
+      uiFeedback: null,
+      listingsFetchStatus: "idle",
+      listingsSourceZip: null,
+      listingsMeta: null,
+
+      showUiFeedback: (message, type) => set({ uiFeedback: { message, type } }),
+      clearUiFeedback: () => set({ uiFeedback: null }),
 
       loginUser: (user) => {
         const state = get();
@@ -632,6 +654,61 @@ export const useDoorwayStore = create<DoorwayState>()(
         }
       },
 
+      fetchListingsByZip: async () => {
+        const { constraints, likedListings, matches, discoverFilters } = get();
+        const activeConstraints = constraints ?? defaultConstraints;
+        const zip = activeConstraints.zipCode;
+        if (!zip || zip.length !== 5) return;
+
+        set({ listingsFetchStatus: "loading" });
+
+        try {
+          const params = new URLSearchParams({
+            zip,
+            maxRent: String(activeConstraints.maxRent),
+            bedrooms: String(activeConstraints.voucherSize),
+          });
+          const res = await fetch(`/api/listings/search?${params}`);
+          const data = (await res.json()) as {
+            listings?: Listing[];
+            sources?: {
+              affordableHousing: number;
+              zillow: number;
+              zillowConfigured: boolean;
+            };
+            error?: string;
+          };
+
+          if (!res.ok || !data.listings) {
+            throw new Error(data.error ?? "Listing search failed");
+          }
+
+          const landlordOwned = get().listings.filter(
+            (l) => l.source === "MANUAL" && !isBuiltInSeedListing(l.id),
+          );
+          const updatedListings = [...data.listings, ...landlordOwned];
+          const freshLiked = rehydrateLikedListings(likedListings, updatedListings);
+
+          set({
+            listings: updatedListings,
+            likedListings: freshLiked,
+            listingsFetchStatus: "ready",
+            listingsSourceZip: zip,
+            listingsMeta: data.sources ?? null,
+            deck: buildDeck(
+              updatedListings,
+              activeConstraints,
+              freshLiked,
+              matches,
+              discoverFilters,
+            ),
+          });
+        } catch {
+          set({ listingsFetchStatus: "error" });
+          get().refreshDeck();
+        }
+      },
+
       refreshDeck: () => {
         const { listings, constraints, likedListings, matches, discoverFilters } = get();
         const activeConstraints = constraints ?? defaultConstraints;
@@ -667,6 +744,9 @@ export const useDoorwayStore = create<DoorwayState>()(
         const listing = deck.find((l) => l.id === listingId);
         if (!listing) return;
 
+        const canonical =
+          listings.find((l) => l.id === listingId) ?? listing;
+
         const seeker = resolveSeeker(currentUser);
         const matchId = `match-${Date.now()}`;
         const newMatch: Match = {
@@ -699,7 +779,7 @@ export const useDoorwayStore = create<DoorwayState>()(
           deck: deck.filter((l) => l.id !== listingId),
           likedListings:
             direction === "right"
-              ? [...likedListings, listing]
+              ? [...likedListings, canonical]
               : likedListings,
           matches: [...matches, newMatch],
           swipeHistory: [
@@ -1200,8 +1280,9 @@ export const useDoorwayStore = create<DoorwayState>()(
           payload,
         );
         const { constraints, likedListings, matches, discoverFilters } = local;
-        const cleanedLiked = likedListings.filter(
-          (l) => !isBlockedListingTitle(l.title),
+        const cleanedLiked = rehydrateLikedListings(
+          likedListings.filter((l) => !isBlockedListingTitle(l.title)),
+          merged.listings,
         );
         set({
           listings: merged.listings,
@@ -1310,7 +1391,7 @@ export const useDoorwayStore = create<DoorwayState>()(
           darkMode: false,
           tutorialSeen: false,
           a11y: { largeText: false, highContrast: false, reduceMotion: false },
-          discoverFilters: { maxRent: 1600, groundFloorOnly: false, neighborhood: "" },
+          discoverFilters: { ...defaultDiscoverFilters },
           onboardingComplete: false,
           constraints: null,
           listings: mockListings,
@@ -1329,7 +1410,7 @@ export const useDoorwayStore = create<DoorwayState>()(
     }),
     {
       name: "doorway-store",
-      version: 11,
+      version: 12,
       migrate: (persisted, version) => {
         const state = persisted as Partial<DoorwayState>;
         const existing = (state.listings ?? []).map((l) => {
@@ -1389,11 +1470,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             matches: state.matches ?? [],
             swipeHistory: state.swipeHistory ?? [],
             tutorialSeen: state.tutorialSeen ?? false,
-            discoverFilters: state.discoverFilters ?? {
-              maxRent: 1600,
-              groundFloorOnly: false,
-              neighborhood: "",
-            },
+            discoverFilters: state.discoverFilters ?? defaultDiscoverFilters,
           });
         }
 
@@ -1419,9 +1496,21 @@ export const useDoorwayStore = create<DoorwayState>()(
           notifications: state.notifications ?? [],
           updatedAt: new Date().toISOString(),
         });
-        const likedListings = (state.likedListings ?? []).filter(
-          (l) => !isBlockedListingTitle(l.title),
+        const likedListings = rehydrateLikedListings(
+          (state.likedListings ?? []).filter(
+            (l) => !isBlockedListingTitle(l.title),
+          ),
+          sanitized.listings,
         );
+
+        const constraints = state.constraints ?? null;
+        const discoverFilters = {
+          ...(state.discoverFilters ?? defaultDiscoverFilters),
+          maxRent: Math.max(
+            state.discoverFilters?.maxRent ?? defaultDiscoverFilters.maxRent,
+            constraints?.maxRent ?? defaultDiscoverFilters.maxRent,
+          ),
+        };
 
         return {
           currentUser: state.currentUser ?? null,
@@ -1429,11 +1518,7 @@ export const useDoorwayStore = create<DoorwayState>()(
           locale: state.locale ?? "en",
           darkMode: state.darkMode ?? false,
           tutorialSeen: state.tutorialSeen ?? false,
-          discoverFilters: state.discoverFilters ?? {
-            maxRent: 1600,
-            groundFloorOnly: false,
-            neighborhood: "",
-          },
+          discoverFilters,
           a11y: state.a11y ?? {
             largeText: false,
             highContrast: false,

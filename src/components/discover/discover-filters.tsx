@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { t } from "@/lib/i18n";
+import { t, type TranslationKey } from "@/lib/i18n";
 import { neighborhoodsForZip } from "@/lib/neighborhoods";
 import { useDoorwayStore } from "@/lib/store";
 
@@ -9,13 +9,19 @@ export function DiscoverFilters() {
   const locale = useDoorwayStore((s) => s.locale);
   const filters = useDoorwayStore((s) => s.discoverFilters);
   const constraints = useDoorwayStore((s) => s.constraints);
+  const listings = useDoorwayStore((s) => s.listings);
   const setDiscoverFilters = useDoorwayStore((s) => s.setDiscoverFilters);
-  const max = constraints?.maxRent ?? 1600;
-  const neighborhoods = neighborhoodsForZip("90026").concat(
-    neighborhoodsForZip("94110"),
-    neighborhoodsForZip("94607"),
-  );
-  const uniqueHoods = [...new Set(neighborhoods)];
+  const max = constraints?.maxRent ?? 4000;
+  const zip = constraints?.zipCode ?? "90011";
+
+  const hoodsFromListings = listings
+    .filter((l) => l.status === "ACTIVE")
+    .map((l) => l.neighborhood)
+    .filter((n): n is string => Boolean(n));
+  const hoodsFromZip = neighborhoodsForZip(zip);
+  const uniqueHoods = [...new Set([...hoodsFromListings, ...hoodsFromZip])]
+    .sort()
+    .slice(0, 8);
 
   return (
     <div className="mx-5 mb-3 rounded-2xl border border-border bg-card p-4">
@@ -56,7 +62,7 @@ export function DiscoverFilters() {
           >
             {t(locale, "anyNeighborhood")}
           </Button>
-          {uniqueHoods.slice(0, 6).map((hood) => (
+          {uniqueHoods.map((hood) => (
             <Button
               key={hood}
               type="button"
