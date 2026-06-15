@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { DoorwayHeader } from "@/components/layout/doorway-header";
+import { ListingCompare } from "@/components/matches/listing-compare";
 import { ListingDetail } from "@/components/matches/listing-detail";
 import { MatchesMap } from "@/components/matches/matches-map";
 import { ShowingConfirmation } from "@/components/matches/showing-confirmation";
@@ -23,6 +24,7 @@ export default function MatchesPage() {
   const canApply = useDoorwayStore((s) => s.canApply);
   const getShowingForListing = useDoorwayStore((s) => s.getShowingForListing);
   const applications = useDoorwayStore((s) => s.applications);
+  const constraints = useDoorwayStore((s) => s.constraints);
   const markSeekerApplicationUpdatesSeen = useDoorwayStore(
     (s) => s.markSeekerApplicationUpdatesSeen,
   );
@@ -55,7 +57,9 @@ export default function MatchesPage() {
     );
   };
 
-  const compareListings = likedListings.filter((l) => compareIds.includes(l.id));
+  const compareListings = compareIds
+    .map((id) => likedListings.find((l) => l.id === id))
+    .filter((l): l is Listing => Boolean(l));
 
   return (
     <AppShell>
@@ -82,25 +86,25 @@ export default function MatchesPage() {
         <>
           {tab === "map" && <MatchesMap listings={likedListings} onSelect={setSelected} />}
           {tab === "compare" && (
-            <div className="px-4 py-4">
-              <p className="mb-3 text-sm text-muted-foreground">{t(locale, "compareSelect")}</p>
-              {compareListings.length > 0 ? (
-                <div className="grid gap-3">
-                  {compareListings.map((l) => (
-                    <div key={l.id} className="rounded-xl border border-border p-3">
-                      <p className="font-bold">{l.title}</p>
-                      <p className="text-primary font-bold">{formatCurrency(l.monthlyRent)}/mo</p>
-                      <p className="text-sm">{l.bedrooms} bed · {l.neighborhood}</p>
-                      <p className="text-xs text-muted-foreground">{l.transitLines.join(", ")}</p>
-                    </div>
-                  ))}
-                </div>
+            <div className="flex flex-col gap-4 px-4 pb-2">
+              {compareListings.length >= 2 ? (
+                <ListingCompare
+                  listings={compareListings}
+                  constraints={constraints}
+                  getAppStatus={getAppStatus}
+                  onView={setSelected}
+                  onRemove={(id) => setCompareIds((prev) => prev.filter((x) => x !== id))}
+                />
               ) : (
-                <p className="text-sm text-muted-foreground">Tap listings below to compare</p>
+                <p className="text-sm text-muted-foreground">
+                  {compareListings.length === 1
+                    ? "Select one more listing to compare side by side."
+                    : t(locale, "compareSelect")}
+                </p>
               )}
             </div>
           )}
-          {tab !== "compare" || compareListings.length < likedListings.length ? (
+          {(tab !== "compare" || compareIds.length < 3) && (
             <ul className="flex flex-col gap-3 px-4 py-4">
               {likedListings.map((listing) => {
                 const status = getAppStatus(listing.id);
@@ -133,7 +137,7 @@ export default function MatchesPage() {
                 );
               })}
             </ul>
-          ) : null}
+          )}
         </>
       )}
 
