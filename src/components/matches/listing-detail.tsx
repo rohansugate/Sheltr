@@ -96,14 +96,16 @@ export function ListingDetail({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center"
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:items-center sm:pb-0"
       role="dialog"
       aria-modal="true"
       aria-label={listing.title}
       onClick={onClose}
     >
       <div
-        className="app-shell flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-background sm:rounded-3xl"
+        className={`flex w-full max-w-[430px] flex-col overflow-hidden rounded-t-3xl bg-background shadow-xl sm:rounded-3xl ${
+          mode === "view" ? "max-h-[85dvh]" : ""
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {mode === "view" ? (
@@ -141,63 +143,61 @@ export function ListingDetail({
             </button>
           </div>
         )}
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-5 py-4 [-webkit-overflow-scrolling:touch]">
-          {mode === "view" && (
-            <>
-              <div>
-                <h2 className="text-2xl font-bold">{listing.title}</h2>
-                <p className="text-lg font-bold text-primary">{formatCurrency(listing.monthlyRent)}/mo</p>
-                <p className="text-sm text-muted-foreground">{listing.bedrooms} bed · {listing.neighborhood}, {listing.zipCode}</p>
-              </div>
-              {showing && (
-                <Badge variant={showing.status === "ACCEPTED" ? "success" : "outline"}>
-                  {showing.status === "ACCEPTED"
-                    ? t(locale, "showingAccepted")
-                    : t(locale, "showingPending")}
-                </Badge>
-              )}
-              <div className="mt-auto flex flex-col gap-3 pt-2">
-                {!showing || showing.status === "DECLINED" ? (
-                  <Button variant="outline" size="lg" onClick={() => setMode("showing")}>
-                    {t(locale, "scheduleShowing")}
-                  </Button>
-                ) : null}
-                <Button
-                  variant="primary"
-                  size="lg"
-                  disabled={!canApply}
-                  onClick={() => (canApply ? setMode("apply") : undefined)}
-                >
-                  {canApply ? t(locale, "apply") : t(locale, "applyAfterShowing")}
+        {mode === "view" ? (
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-5 py-4 [-webkit-overflow-scrolling:touch]">
+            <div>
+              <h2 className="text-2xl font-bold">{listing.title}</h2>
+              <p className="text-lg font-bold text-primary">{formatCurrency(listing.monthlyRent)}/mo</p>
+              <p className="text-sm text-muted-foreground">{listing.bedrooms} bed · {listing.neighborhood}, {listing.zipCode}</p>
+            </div>
+            {showing && (
+              <Badge variant={showing.status === "ACCEPTED" ? "success" : "outline"}>
+                {showing.status === "ACCEPTED"
+                  ? t(locale, "showingAccepted")
+                  : t(locale, "showingPending")}
+              </Badge>
+            )}
+            <div className="mt-auto flex flex-col gap-3 pt-2">
+              {!showing || showing.status === "DECLINED" ? (
+                <Button variant="outline" size="lg" onClick={() => setMode("showing")}>
+                  {t(locale, "scheduleShowing")}
                 </Button>
-              </div>
-            </>
-          )}
-          {mode === "apply" && (
-            <>
-              <Input label={t(locale, "voucherCaseNumber")} value={packet.voucherCaseNumber} onChange={(e) => setPacket({ ...packet, voucherCaseNumber: e.target.value })} required />
-              <Input label="Employment" value={packet.employment} onChange={(e) => setPacket({ ...packet, employment: e.target.value })} required />
-              <Input label="References" value={packet.references} onChange={(e) => setPacket({ ...packet, references: e.target.value })} required />
-            </>
-          )}
-          {mode === "showing" && (
-            <>
-              <Input label="Date" type="date" value={showingDate} onChange={(e) => setShowingDate(e.target.value)} required />
-              <Input label="Time" type="time" value={showingTime} onChange={(e) => setShowingTime(e.target.value)} required />
-              <p className="text-sm font-semibold">{t(locale, "contactMethod")}</p>
-              <div className="flex gap-2">
-                <Button type="button" variant={contactMethod === "phone" ? "primary" : "outline"} size="sm" className="flex-1" onClick={() => setContactMethod("phone")}>{t(locale, "phone")}</Button>
-                <Button type="button" variant={contactMethod === "email" ? "primary" : "outline"} size="sm" className="flex-1" onClick={() => setContactMethod("email")}>{t(locale, "email")}</Button>
-              </div>
-              <Input label={contactMethod === "phone" ? "Phone number" : "Email address"} value={contactValue} onChange={(e) => setContactValue(e.target.value)} required inputMode={contactMethod === "phone" ? "tel" : "email"} />
-            </>
-          )}
-        </div>
+              ) : null}
+              <Button
+                variant="primary"
+                size="lg"
+                disabled={!canApply}
+                onClick={() => (canApply ? setMode("apply") : undefined)}
+              >
+                {canApply ? t(locale, "apply") : t(locale, "applyAfterShowing")}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 px-5 py-4">
+            {mode === "apply" && (
+              <>
+                <Input label={t(locale, "voucherCaseNumber")} value={packet.voucherCaseNumber} onChange={(e) => setPacket({ ...packet, voucherCaseNumber: e.target.value })} required />
+                <Input label="Employment" value={packet.employment} onChange={(e) => setPacket({ ...packet, employment: e.target.value })} required />
+                <Input label="References" value={packet.references} onChange={(e) => setPacket({ ...packet, references: e.target.value })} required />
+              </>
+            )}
+            {mode === "showing" && (
+              <>
+                <Input label="Date" type="date" value={showingDate} onChange={(e) => setShowingDate(e.target.value)} required />
+                <Input label="Time" type="time" value={showingTime} onChange={(e) => setShowingTime(e.target.value)} required />
+                <p className="text-sm font-semibold">{t(locale, "contactMethod")}</p>
+                <div className="flex gap-2">
+                  <Button type="button" variant={contactMethod === "phone" ? "primary" : "outline"} size="sm" className="flex-1" onClick={() => setContactMethod("phone")}>{t(locale, "phone")}</Button>
+                  <Button type="button" variant={contactMethod === "email" ? "primary" : "outline"} size="sm" className="flex-1" onClick={() => setContactMethod("email")}>{t(locale, "email")}</Button>
+                </div>
+                <Input label={contactMethod === "phone" ? "Phone number" : "Email address"} value={contactValue} onChange={(e) => setContactValue(e.target.value)} required inputMode={contactMethod === "phone" ? "tel" : "email"} />
+              </>
+            )}
+          </div>
+        )}
         {mode === "apply" && (
-          <div
-            className="flex shrink-0 gap-3 border-t border-border px-5 py-4"
-            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
-          >
+          <div className="flex shrink-0 gap-3 border-t border-border px-5 py-4">
             <Button type="button" variant="outline" size="lg" className="flex-1" onClick={() => setMode("view")}>
               Back
             </Button>
@@ -216,10 +216,7 @@ export function ListingDetail({
           </div>
         )}
         {mode === "showing" && (
-          <div
-            className="flex shrink-0 gap-3 border-t border-border px-5 py-4"
-            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
-          >
+          <div className="flex shrink-0 gap-3 border-t border-border px-5 py-4">
             <Button type="button" variant="outline" size="lg" className="flex-1" onClick={() => setMode("view")}>
               Back
             </Button>
