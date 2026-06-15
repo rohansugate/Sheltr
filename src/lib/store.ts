@@ -127,15 +127,15 @@ interface DoorwayState {
 const defaultConstraints = mockSeeker.constraints ?? {
   housingSituation: "SHELTER" as const,
   voucherStatus: "HAS_VOUCHER" as const,
-  zipCode: "19104",
+  zipCode: "90011",
   voucherSize: 2,
-  maxRent: 1600,
+  maxRent: 4000,
   accessibilityNeeds: false,
   proximityNeeds: [],
 };
 
 const defaultDiscoverFilters: DiscoverFilters = {
-  maxRent: 1600,
+  maxRent: 4000,
   groundFloorOnly: false,
   neighborhood: "",
 };
@@ -1329,7 +1329,7 @@ export const useDoorwayStore = create<DoorwayState>()(
     }),
     {
       name: "doorway-store",
-      version: 10,
+      version: 11,
       migrate: (persisted, version) => {
         const state = persisted as Partial<DoorwayState>;
         const existing = (state.listings ?? []).map((l) => {

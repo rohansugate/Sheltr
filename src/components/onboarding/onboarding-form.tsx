@@ -113,7 +113,7 @@ export function OnboardingForm() {
     voucherStatus: "HAS_VOUCHER",
     zipCode: "90011",
     voucherSize: 2,
-    maxRent: 1600,
+    maxRent: 4000,
     accessibilityNeeds: false,
     proximityNeeds: [],
   });
