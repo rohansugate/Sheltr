@@ -91,9 +91,20 @@ const en = {
   loadingHomes: "Loading homes…",
   listingSearchFailed: "Could not load listings for your zip.",
   retry: "Retry",
-  zillowSetupHint: "Add Bright Data API key for Zillow rentals",
+  zillowSetupHint: "Zillow search not connected — add Bright Data key for more rentals",
+  sourceSection8: "{count} Section 8 homes from Affordable Housing",
+  sourceZillow: "{count} from Zillow",
   hideFilters: "Hide filters",
   zillowListing: "From Zillow — ask landlord about Section 8",
+  updatedJustNow: "Updated just now",
+  updatedOneMinAgo: "Updated 1 min ago",
+  updatedMinAgo: "Updated {mins} min ago",
+  coverageLimited:
+    "Sheltr has the deepest coverage in Los Angeles County. Showing the closest matches we found.",
+  coverageMetro:
+    "Few homes in {zip} — expanded to nearby LA neighborhoods that fit your voucher.",
+  coverageFallback:
+    "No live listings for {zip} yet. Browse voucher-friendly homes in the LA area below.",
 } as const;
 
 export type TranslationKey = keyof typeof en;

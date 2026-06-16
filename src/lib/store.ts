@@ -28,18 +28,26 @@ import type {
 } from "./types";
 import {
   DEFAULT_IMAGE,
-  filterListingsForSeeker,
   mockLandlord,
   mockListings,
   mockSeeker,
-  SEEKER_DECK_SIZE,
   zipToCoords,
 } from "./mock-data";
 import { SEED_APPLICATIONS, SEED_SHOWINGS } from "./seed-data";
 import type { SyncStatus } from "./demo-sync";
 import { localStateToSyncPayload, mergeDemoPayload, isBlockedListingTitle, sanitizeDemoPayload } from "./sync-merge";
-import { sortByRelevance, isBuiltInSeedListing } from "./sort-listings";
-import { rehydrateLikedListings } from "./rehydrate-listings";
+import { syncLikedState } from "./store/liked";
+import { buildDeck } from "./store/deck";
+import {
+  buildListingFetchKey,
+  defaultConstraints,
+  defaultDiscoverFilters,
+} from "./store/defaults";
+import {
+  applyListingsUpdate as applyListingsUpdateSlice,
+  runFetchListingsByZip,
+} from "./store/listing-fetch";
+import type { ListingCoverage } from "./listing-search";
 import {
   displayName,
   resolveActingLandlordId,
@@ -64,7 +72,9 @@ interface DoorwayState {
   constraints: SeekerConstraints | null;
   listings: Listing[];
   deck: Listing[];
+  likedListingIds: string[];
   likedListings: Listing[];
+  compareIds: string[];
   matches: Match[];
   swipeHistory: SwipeAction[];
   applications: Application[];
@@ -85,6 +95,10 @@ interface DoorwayState {
   uiFeedback: { message: string; type: "error" | "success" } | null;
   listingsFetchStatus: "idle" | "loading" | "ready" | "error";
   listingsSourceZip: string | null;
+  listingsFetchKey: string | null;
+  listingsFetchedAt: string | null;
+  listingsCoverage: ListingCoverage | null;
+  listingsCoverageMessage: string | null;
   listingsMeta: {
     affordableHousing: number;
     zillow: number;
@@ -103,6 +117,8 @@ interface DoorwayState {
   completeOnboarding: () => void;
   fetchListingsByZip: () => Promise<void>;
   refreshDeck: () => void;
+  setCompareIds: (ids: string[]) => void;
+  toggleCompareId: (id: string) => void;
   swipe: (listingId: string, direction: "left" | "right") => void;
   undoSwipe: () => void;
   canApply: (listingId: string) => boolean;
@@ -136,26 +152,10 @@ interface DoorwayState {
   reset: () => void;
 }
 
-const defaultConstraints = mockSeeker.constraints ?? {
-  housingSituation: "SHELTER" as const,
-  voucherStatus: "HAS_VOUCHER" as const,
-  zipCode: "90011",
-  voucherSize: 2,
-  maxRent: 4000,
-  accessibilityNeeds: false,
-  proximityNeeds: [],
-};
-
-const defaultDiscoverFilters: DiscoverFilters = {
-  maxRent: 4000,
-  groundFloorOnly: false,
-  neighborhood: "",
-};
-
 function snapshotTenantSession(state: {
   onboardingComplete: boolean;
   constraints: SeekerConstraints | null;
-  likedListings: Listing[];
+  likedListingIds: string[];
   matches: Match[];
   swipeHistory: SwipeAction[];
   tutorialSeen: boolean;
@@ -164,7 +164,7 @@ function snapshotTenantSession(state: {
   return {
     onboardingComplete: state.onboardingComplete,
     constraints: state.constraints,
-    likedListings: state.likedListings,
+    likedListingIds: state.likedListingIds,
     matches: state.matches,
     swipeHistory: state.swipeHistory,
     tutorialSeen: state.tutorialSeen,
@@ -176,6 +176,7 @@ function freshTenantState(): Pick<
   DoorwayState,
   | "onboardingComplete"
   | "constraints"
+  | "likedListingIds"
   | "likedListings"
   | "matches"
   | "swipeHistory"
@@ -186,6 +187,7 @@ function freshTenantState(): Pick<
   return {
     onboardingComplete: false,
     constraints: null,
+    likedListingIds: [],
     likedListings: [],
     matches: [],
     swipeHistory: [],
@@ -222,6 +224,7 @@ function applyTenantSession(
   DoorwayState,
   | "onboardingComplete"
   | "constraints"
+  | "likedListingIds"
   | "likedListings"
   | "matches"
   | "swipeHistory"
@@ -231,11 +234,18 @@ function applyTenantSession(
 > {
   const discoverFilters = session.discoverFilters ?? defaultDiscoverFilters;
   const constraints = session.constraints;
-  const likedListings = rehydrateLikedListings(session.likedListings, listings);
+  const legacyIds =
+    session.likedListingIds ??
+    (
+      session as TenantSession & { likedListings?: Listing[] }
+    ).likedListings?.map((l) => l.id) ??
+    [];
+  const liked = syncLikedState(legacyIds, listings);
   return {
     onboardingComplete: session.onboardingComplete,
     constraints: session.constraints,
-    likedListings,
+    likedListingIds: liked.likedListingIds,
+    likedListings: liked.likedListings,
     matches: session.matches,
     swipeHistory: session.swipeHistory,
     tutorialSeen: session.tutorialSeen,
@@ -244,7 +254,8 @@ function applyTenantSession(
       ? buildDeck(
           listings,
           constraints ?? defaultConstraints,
-          likedListings,
+          liked.likedListingIds,
+          liked.likedListings,
           session.matches,
           discoverFilters,
         )
@@ -252,54 +263,16 @@ function applyTenantSession(
   };
 }
 
-function buildDeck(
-  listings: Listing[],
-  constraints: SeekerConstraints | null,
-  likedListings: Listing[],
-  matches: Match[],
-  filters: DiscoverFilters,
-) {
-  const passedIds = new Set(
-    matches.filter((m) => m.status === "PASSED").map((m) => m.listingId),
-  );
-  const likedIds = new Set(likedListings.map((l) => l.id));
-  const activeConstraints = constraints ?? defaultConstraints;
-  let filtered = filterListingsForSeeker(listings, activeConstraints).filter(
-    (l) => !passedIds.has(l.id) && !likedIds.has(l.id),
-  );
-  if (filters.maxRent < activeConstraints.maxRent) {
-    filtered = filtered.filter((l) => l.monthlyRent <= filters.maxRent);
-  }
-  if (filters.groundFloorOnly) {
-    filtered = filtered.filter((l) => l.isGroundFloor);
-  }
-  if (filters.neighborhood) {
-    filtered = filtered.filter((l) => l.neighborhood === filters.neighborhood);
-  }
-  return sortByRelevance(filtered, activeConstraints, likedListings).slice(
-    0,
-    SEEKER_DECK_SIZE,
-  );
-}
-
 function applyListingsUpdate(
   get: () => DoorwayState,
   set: (partial: Partial<DoorwayState>) => void,
   updatedListings: Listing[],
 ) {
-  const { constraints, likedListings, matches, discoverFilters } = get();
-  const freshLiked = rehydrateLikedListings(likedListings, updatedListings);
-  set({
-    listings: updatedListings,
-    likedListings: freshLiked,
-    deck: buildDeck(
-      updatedListings,
-      constraints ?? defaultConstraints,
-      freshLiked,
-      matches,
-      discoverFilters,
-    ),
-  });
+  applyListingsUpdateSlice(
+    get as Parameters<typeof applyListingsUpdateSlice>[0],
+    set as Parameters<typeof applyListingsUpdateSlice>[1],
+    updatedListings,
+  );
 }
 
 function inputToListing(
@@ -510,7 +483,9 @@ export const useDoorwayStore = create<DoorwayState>()(
       constraints: null,
       listings: mockListings,
       deck: [],
+      likedListingIds: [],
       likedListings: [],
+      compareIds: [],
       matches: [],
       swipeHistory: [],
       applications: SEED_APPLICATIONS,
@@ -531,6 +506,10 @@ export const useDoorwayStore = create<DoorwayState>()(
       uiFeedback: null,
       listingsFetchStatus: "idle",
       listingsSourceZip: null,
+      listingsFetchKey: null,
+      listingsFetchedAt: null,
+      listingsCoverage: null,
+      listingsCoverageMessage: null,
       listingsMeta: null,
 
       showUiFeedback: (message, type) => set({ uiFeedback: { message, type } }),
@@ -605,12 +584,13 @@ export const useDoorwayStore = create<DoorwayState>()(
       dismissTutorial: () => set({ tutorialSeen: true }),
       setDiscoverFilters: (filters) => {
         const discoverFilters = { ...get().discoverFilters, ...filters };
-        const { listings, constraints, likedListings, matches } = get();
+        const { listings, constraints, likedListingIds, likedListings, matches } = get();
         set({
           discoverFilters,
           deck: buildDeck(
             listings,
             constraints ?? defaultConstraints,
+            likedListingIds,
             likedListings,
             matches,
             discoverFilters,
@@ -621,15 +601,22 @@ export const useDoorwayStore = create<DoorwayState>()(
       setA11y: (a11y) => set({ a11y: { ...get().a11y, ...a11y } }),
 
       setConstraints: (constraints) => {
-        const { listings, likedListings, matches, discoverFilters } = get();
+        const { listings, likedListingIds, likedListings, matches, discoverFilters } = get();
         set({
           constraints,
-          deck: buildDeck(listings, constraints, likedListings, matches, discoverFilters),
+          deck: buildDeck(
+            listings,
+            constraints,
+            likedListingIds,
+            likedListings,
+            matches,
+            discoverFilters,
+          ),
         });
       },
 
       completeOnboarding: () => {
-        const { constraints, listings, likedListings, matches, discoverFilters } = get();
+        const { constraints, listings, likedListingIds, likedListings, matches, discoverFilters } = get();
         const activeConstraints = constraints ?? defaultConstraints;
         const filters: DiscoverFilters = {
           maxRent: activeConstraints.maxRent,
@@ -640,7 +627,14 @@ export const useDoorwayStore = create<DoorwayState>()(
           onboardingComplete: true,
           constraints: activeConstraints,
           discoverFilters: filters,
-          deck: buildDeck(listings, activeConstraints, likedListings, matches, filters),
+          deck: buildDeck(
+            listings,
+            activeConstraints,
+            likedListingIds,
+            likedListings,
+            matches,
+            filters,
+          ),
         });
 
         const user = get().currentUser;
@@ -655,66 +649,33 @@ export const useDoorwayStore = create<DoorwayState>()(
       },
 
       fetchListingsByZip: async () => {
-        const { constraints, likedListings, matches, discoverFilters } = get();
-        const activeConstraints = constraints ?? defaultConstraints;
-        const zip = activeConstraints.zipCode;
-        if (!zip || zip.length !== 5) return;
+        const { locale } = get();
+        await runFetchListingsByZip(
+          get as Parameters<typeof runFetchListingsByZip>[0],
+          set as Parameters<typeof runFetchListingsByZip>[1],
+          locale,
+        );
+      },
 
-        set({ listingsFetchStatus: "loading" });
-
-        try {
-          const params = new URLSearchParams({
-            zip,
-            maxRent: String(activeConstraints.maxRent),
-            bedrooms: String(activeConstraints.voucherSize),
-          });
-          const res = await fetch(`/api/listings/search?${params}`);
-          const data = (await res.json()) as {
-            listings?: Listing[];
-            sources?: {
-              affordableHousing: number;
-              zillow: number;
-              zillowConfigured: boolean;
-            };
-            error?: string;
-          };
-
-          if (!res.ok || !data.listings) {
-            throw new Error(data.error ?? "Listing search failed");
-          }
-
-          const landlordOwned = get().listings.filter(
-            (l) => l.source === "MANUAL" && !isBuiltInSeedListing(l.id),
-          );
-          const updatedListings = [...data.listings, ...landlordOwned];
-          const freshLiked = rehydrateLikedListings(likedListings, updatedListings);
-
-          set({
-            listings: updatedListings,
-            likedListings: freshLiked,
-            listingsFetchStatus: "ready",
-            listingsSourceZip: zip,
-            listingsMeta: data.sources ?? null,
-            deck: buildDeck(
-              updatedListings,
-              activeConstraints,
-              freshLiked,
-              matches,
-              discoverFilters,
-            ),
-          });
-        } catch {
-          set({ listingsFetchStatus: "error" });
-          get().refreshDeck();
+      setCompareIds: (compareIds) => set({ compareIds }),
+      toggleCompareId: (id) => {
+        const { compareIds } = get();
+        if (compareIds.includes(id)) {
+          set({ compareIds: compareIds.filter((x) => x !== id) });
+          return;
+        }
+        if (compareIds.length < 3) {
+          set({ compareIds: [...compareIds, id] });
         }
       },
 
       refreshDeck: () => {
-        const { listings, constraints, likedListings, matches, discoverFilters } = get();
+        const { listings, constraints, likedListingIds, likedListings, matches, discoverFilters } = get();
         const activeConstraints = constraints ?? defaultConstraints;
         let deck = buildDeck(
           listings,
           activeConstraints,
+          likedListingIds,
           likedListings,
           matches,
           discoverFilters,
@@ -726,6 +687,7 @@ export const useDoorwayStore = create<DoorwayState>()(
           deck = buildDeck(
             listings,
             activeConstraints,
+            likedListingIds,
             likedListings,
             recycledMatches,
             discoverFilters,
@@ -740,7 +702,7 @@ export const useDoorwayStore = create<DoorwayState>()(
       },
 
       swipe: (listingId, direction) => {
-        const { deck, likedListings, matches, listings, swipeHistory, currentUser } = get();
+        const { deck, likedListingIds, matches, listings, swipeHistory, currentUser } = get();
         const listing = deck.find((l) => l.id === listingId);
         if (!listing) return;
 
@@ -774,17 +736,21 @@ export const useDoorwayStore = create<DoorwayState>()(
             : l,
         );
 
+        const nextIds =
+          direction === "right"
+            ? [...likedListingIds, listingId]
+            : likedListingIds;
+        const liked = syncLikedState(nextIds, updatedListings);
+
         set({
           listings: updatedListings,
           deck: deck.filter((l) => l.id !== listingId),
-          likedListings:
-            direction === "right"
-              ? [...likedListings, canonical]
-              : likedListings,
+          likedListingIds: liked.likedListingIds,
+          likedListings: liked.likedListings,
           matches: [...matches, newMatch],
           swipeHistory: [
             ...swipeHistory,
-            { listing, direction, matchId },
+            { listing: canonical, direction, matchId },
           ].slice(-10),
         });
       },
@@ -793,13 +759,14 @@ export const useDoorwayStore = create<DoorwayState>()(
         const history = get().swipeHistory;
         if (history.length === 0) return;
         const last = history[history.length - 1];
-        const { deck, likedListings, matches, listings } = get();
+        const { deck, likedListingIds, matches, listings } = get();
 
         const updatedMatches = matches.filter((m) => m.id !== last.matchId);
-        const updatedLiked =
+        const nextIds =
           last.direction === "right"
-            ? likedListings.filter((l) => l.id !== last.listing.id)
-            : likedListings;
+            ? likedListingIds.filter((id) => id !== last.listing.id)
+            : likedListingIds;
+        const liked = syncLikedState(nextIds, listings);
 
         const updatedListings = listings.map((l) =>
           l.id === last.listing.id
@@ -813,13 +780,13 @@ export const useDoorwayStore = create<DoorwayState>()(
             : l,
         );
 
-        const { constraints } = get();
         const newDeck = [last.listing, ...deck.filter((l) => l.id !== last.listing.id)];
 
         set({
           listings: updatedListings,
           matches: updatedMatches,
-          likedListings: updatedLiked,
+          likedListingIds: liked.likedListingIds,
+          likedListings: liked.likedListings,
           deck: newDeck,
           swipeHistory: history.slice(0, -1),
         });
@@ -1279,11 +1246,12 @@ export const useDoorwayStore = create<DoorwayState>()(
           }),
           payload,
         );
-        const { constraints, likedListings, matches, discoverFilters } = local;
-        const cleanedLiked = rehydrateLikedListings(
-          likedListings.filter((l) => !isBlockedListingTitle(l.title)),
-          merged.listings,
-        );
+        const { constraints, likedListingIds, matches, discoverFilters } = local;
+        const cleanedIds = likedListingIds.filter((id) => {
+          const listing = merged.listings.find((l) => l.id === id);
+          return listing && !isBlockedListingTitle(listing.title);
+        });
+        const cleanedLiked = syncLikedState(cleanedIds, merged.listings);
         set({
           listings: merged.listings,
           applications: merged.applications,
@@ -1291,12 +1259,14 @@ export const useDoorwayStore = create<DoorwayState>()(
           conversations: merged.conversations,
           messages: merged.messages,
           notifications: merged.notifications,
-          likedListings: cleanedLiked,
+          likedListingIds: cleanedLiked.likedListingIds,
+          likedListings: cleanedLiked.likedListings,
           lastSyncedAt: merged.updatedAt,
           deck: buildDeck(
             merged.listings,
             constraints ?? defaultConstraints,
-            cleanedLiked,
+            cleanedLiked.likedListingIds,
+            cleanedLiked.likedListings,
             matches,
             discoverFilters,
           ),
@@ -1396,7 +1366,9 @@ export const useDoorwayStore = create<DoorwayState>()(
           constraints: null,
           listings: mockListings,
           deck: [],
+          likedListingIds: [],
           likedListings: [],
+          compareIds: [],
           matches: [],
           swipeHistory: [],
           applications: SEED_APPLICATIONS,
@@ -1410,9 +1382,11 @@ export const useDoorwayStore = create<DoorwayState>()(
     }),
     {
       name: "doorway-store",
-      version: 12,
+      version: 13,
       migrate: (persisted, version) => {
-        const state = persisted as Partial<DoorwayState>;
+        const state = persisted as Partial<DoorwayState> & {
+          likedListings?: Listing[];
+        };
         const existing = (state.listings ?? []).map((l) => {
           const seed = mockListings.find((m) => m.id === l.id);
           return {
@@ -1456,9 +1430,25 @@ export const useDoorwayStore = create<DoorwayState>()(
               }
             : c,
         );
-        const tenantSessions: Record<string, TenantSession> = {
-          ...(state.tenantSessions ?? {}),
-        };
+
+        const rawLikedIds =
+          state.likedListingIds ??
+          (state.likedListings ?? [])
+            .filter((l) => !isBlockedListingTitle(l.title))
+            .map((l) => l.id);
+
+        const tenantSessions: Record<string, TenantSession> = {};
+        for (const [id, session] of Object.entries(state.tenantSessions ?? {})) {
+          const legacy = session as TenantSession & { likedListings?: Listing[] };
+          tenantSessions[id] = {
+            ...session,
+            likedListingIds:
+              legacy.likedListingIds ??
+              legacy.likedListings?.map((l) => l.id) ??
+              [],
+          };
+        }
+
         if (
           state.currentUser?.role === "SEEKER" &&
           !tenantSessions[state.currentUser.id]
@@ -1466,7 +1456,7 @@ export const useDoorwayStore = create<DoorwayState>()(
           tenantSessions[state.currentUser.id] = snapshotTenantSession({
             onboardingComplete: state.onboardingComplete ?? false,
             constraints: state.constraints ?? null,
-            likedListings: state.likedListings ?? [],
+            likedListingIds: rawLikedIds,
             matches: state.matches ?? [],
             swipeHistory: state.swipeHistory ?? [],
             tutorialSeen: state.tutorialSeen ?? false,
@@ -1496,12 +1486,7 @@ export const useDoorwayStore = create<DoorwayState>()(
           notifications: state.notifications ?? [],
           updatedAt: new Date().toISOString(),
         });
-        const likedListings = rehydrateLikedListings(
-          (state.likedListings ?? []).filter(
-            (l) => !isBlockedListingTitle(l.title),
-          ),
-          sanitized.listings,
-        );
+        const liked = syncLikedState(rawLikedIds, sanitized.listings);
 
         const constraints = state.constraints ?? null;
         const discoverFilters = {
@@ -1511,6 +1496,10 @@ export const useDoorwayStore = create<DoorwayState>()(
             constraints?.maxRent ?? defaultDiscoverFilters.maxRent,
           ),
         };
+
+        const listingsFetchKey =
+          state.listingsFetchKey ??
+          (constraints ? buildListingFetchKey(constraints) : null);
 
         return {
           currentUser: state.currentUser ?? null,
@@ -1527,7 +1516,9 @@ export const useDoorwayStore = create<DoorwayState>()(
           onboardingComplete: state.onboardingComplete ?? false,
           constraints: state.constraints ?? null,
           listings: sanitized.listings,
-          likedListings,
+          likedListingIds: liked.likedListingIds,
+          likedListings: liked.likedListings,
+          compareIds: state.compareIds ?? [],
           matches: state.matches ?? [],
           swipeHistory: state.swipeHistory ?? [],
           applications: sanitized.applications,
@@ -1541,6 +1532,13 @@ export const useDoorwayStore = create<DoorwayState>()(
           seenLandlordShowingIds: state.seenLandlordShowingIds ?? [],
           seenSeekerApplicationIds: state.seenSeekerApplicationIds ?? [],
           seenSeekerShowingIds: state.seenSeekerShowingIds ?? [],
+          listingsFetchKey,
+          listingsFetchedAt: state.listingsFetchedAt ?? null,
+          listingsSourceZip: state.listingsSourceZip ?? null,
+          listingsCoverage: state.listingsCoverage ?? null,
+          listingsCoverageMessage: state.listingsCoverageMessage ?? null,
+          lastSyncedAt: state.lastSyncedAt ?? null,
+          lastLocalRevision: state.lastLocalRevision ?? 0,
         };
       },
       partialize: (state) => ({
@@ -1554,7 +1552,8 @@ export const useDoorwayStore = create<DoorwayState>()(
         onboardingComplete: state.onboardingComplete,
         constraints: state.constraints,
         listings: state.listings,
-        likedListings: state.likedListings,
+        likedListingIds: state.likedListingIds,
+        compareIds: state.compareIds,
         matches: state.matches,
         swipeHistory: state.swipeHistory,
         tenantSessions: state.tenantSessions,
@@ -1570,6 +1569,11 @@ export const useDoorwayStore = create<DoorwayState>()(
         notifications: state.notifications,
         lastSyncedAt: state.lastSyncedAt,
         lastLocalRevision: state.lastLocalRevision ?? 0,
+        listingsFetchKey: state.listingsFetchKey,
+        listingsFetchedAt: state.listingsFetchedAt,
+        listingsSourceZip: state.listingsSourceZip,
+        listingsCoverage: state.listingsCoverage,
+        listingsCoverageMessage: state.listingsCoverageMessage,
       }),
     },
   ),

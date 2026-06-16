@@ -76,6 +76,7 @@ export interface Listing {
   status: ListingStatus;
   analytics: ListingAnalytics;
   updatedAt?: string;
+  sourceUrl?: string;
   petsAllowed?: boolean;
   utilitiesIncluded?: string;
   availableDate?: string;
@@ -210,7 +211,7 @@ export interface Match {
 export interface TenantSession {
   onboardingComplete: boolean;
   constraints: SeekerConstraints | null;
-  likedListings: Listing[];
+  likedListingIds: string[];
   matches: Match[];
   swipeHistory: SwipeAction[];
   tutorialSeen: boolean;

@@ -6,6 +6,7 @@ import { homePathForUser, isLandlordPath, isTenantPath } from "@/lib/auth-routin
 import { useDoorwayStore } from "@/lib/store";
 
 const PUBLIC_PATHS = new Set(["/", "/auth"]);
+const DEMO_BYPASS = process.env.NEXT_PUBLIC_ALLOW_DEMO_BYPASS === "true";
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -23,7 +24,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     if (PUBLIC_PATHS.has(pathname)) return;
 
     if (!currentUser) {
-      if (role) return;
+      if (DEMO_BYPASS && role) return;
       router.replace("/auth?switch=1&mode=login");
       return;
     }
@@ -48,7 +49,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [pathname, currentUser, role, onboardingComplete, router]);
 
-  if (!PUBLIC_PATHS.has(pathname) && !currentUser && !role) {
+  if (!PUBLIC_PATHS.has(pathname) && !currentUser && !(DEMO_BYPASS && role)) {
     return null;
   }
 

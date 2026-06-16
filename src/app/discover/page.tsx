@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { DoorwayHeader } from "@/components/layout/doorway-header";
@@ -11,8 +11,65 @@ import { TutorialOverlay } from "@/components/discover/tutorial-overlay";
 import { ShowingConfirmation } from "@/components/matches/showing-confirmation";
 import { Button } from "@/components/ui/button";
 import { SEEKER_DECK_SIZE } from "@/lib/mock-data";
+import { buildListingFetchKey } from "@/lib/store/defaults";
 import { t } from "@/lib/i18n";
 import { useDoorwayStore } from "@/lib/store";
+import type { Locale } from "@/lib/types";
+import type { ListingCoverage } from "@/lib/listing-search";
+
+function formatUpdatedAgo(iso: string | null, locale: Locale) {
+  if (!iso) return null;
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1) return t(locale, "updatedJustNow");
+  if (mins === 1) return t(locale, "updatedOneMinAgo");
+  return t(locale, "updatedMinAgo").replace("{mins}", String(mins));
+}
+
+function coverageBannerText(
+  coverage: ListingCoverage,
+  zip: string,
+  locale: Locale,
+): string | null {
+  switch (coverage) {
+    case "limited":
+      return t(locale, "coverageLimited");
+    case "metro":
+      return t(locale, "coverageMetro").replace("{zip}", zip);
+    case "fallback":
+      return t(locale, "coverageFallback").replace("{zip}", zip);
+    default:
+      return null;
+  }
+}
+
+function sourceSummaryLine(
+  meta: {
+    affordableHousing: number;
+    zillow: number;
+    zillowConfigured: boolean;
+  },
+  locale: Locale,
+): string | null {
+  const parts: string[] = [];
+  if (meta.affordableHousing > 0) {
+    parts.push(
+      t(locale, "sourceSection8").replace(
+        "{count}",
+        String(meta.affordableHousing),
+      ),
+    );
+  }
+  if (meta.zillow > 0) {
+    parts.push(
+      t(locale, "sourceZillow").replace("{count}", String(meta.zillow)),
+    );
+  }
+  if (parts.length === 0) return null;
+  if (!meta.zillowConfigured) {
+    parts.push(t(locale, "zillowSetupHint"));
+  }
+  return parts.join(" · ");
+}
 
 export default function DiscoverPage() {
   const router = useRouter();
@@ -23,12 +80,18 @@ export default function DiscoverPage() {
   const refreshDeck = useDoorwayStore((s) => s.refreshDeck);
   const fetchListingsByZip = useDoorwayStore((s) => s.fetchListingsByZip);
   const listingsFetchStatus = useDoorwayStore((s) => s.listingsFetchStatus);
-  const listingsSourceZip = useDoorwayStore((s) => s.listingsSourceZip);
+  const listingsFetchKey = useDoorwayStore((s) => s.listingsFetchKey);
+  const listingsFetchedAt = useDoorwayStore((s) => s.listingsFetchedAt);
   const listingsMeta = useDoorwayStore((s) => s.listingsMeta);
+  const listingsCoverage = useDoorwayStore((s) => s.listingsCoverage);
   const deck = useDoorwayStore((s) => s.deck);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const zip = constraints?.zipCode ?? "90011";
+  const desiredFetchKey = useMemo(
+    () => (constraints ? buildListingFetchKey(constraints) : null),
+    [constraints],
+  );
 
   useEffect(() => {
     if (!onboardingComplete && !constraints) {
@@ -39,8 +102,8 @@ export default function DiscoverPage() {
   }, [onboardingComplete, constraints, router, completeOnboarding]);
 
   useEffect(() => {
-    if (!constraints?.zipCode) return;
-    if (listingsSourceZip === constraints.zipCode && listingsFetchStatus === "ready") {
+    if (!constraints?.zipCode || !desiredFetchKey) return;
+    if (listingsFetchKey === desiredFetchKey && listingsFetchStatus === "ready") {
       refreshDeck();
       return;
     }
@@ -49,16 +112,26 @@ export default function DiscoverPage() {
     constraints?.zipCode,
     constraints?.maxRent,
     constraints?.voucherSize,
-    listingsSourceZip,
+    desiredFetchKey,
+    listingsFetchKey,
     listingsFetchStatus,
     fetchListingsByZip,
     refreshDeck,
   ]);
 
+  const updatedAgo = formatUpdatedAgo(listingsFetchedAt, locale);
+  const coverageText =
+    listingsCoverage && listingsCoverage !== "zip"
+      ? coverageBannerText(listingsCoverage, zip, locale)
+      : null;
+  const sourceLine =
+    listingsMeta && listingsFetchStatus === "ready"
+      ? sourceSummaryLine(listingsMeta, locale)
+      : null;
   const subtitle =
     listingsFetchStatus === "loading"
       ? t(locale, "searchingListings")
-      : `${t(locale, "section8Near")} ${zip}`;
+      : `${t(locale, "section8Near")} ${zip}${updatedAgo ? ` · ${updatedAgo}` : ""}`;
 
   return (
     <AppShell>
@@ -66,12 +139,14 @@ export default function DiscoverPage() {
       <RoleSwitcher compact />
 
       <div className="flex flex-1 flex-col px-5 pb-2">
-        {listingsMeta && listingsFetchStatus === "ready" && (
-          <p className="mb-2 text-xs text-muted-foreground">
-            {listingsMeta.affordableHousing} Section 8
-            {listingsMeta.zillow > 0 ? ` · ${listingsMeta.zillow} from Zillow` : ""}
-            {!listingsMeta.zillowConfigured ? ` · ${t(locale, "zillowSetupHint")}` : ""}
-          </p>
+        {coverageText && listingsFetchStatus === "ready" && (
+          <div className="mb-3 rounded-2xl border border-border bg-surface px-3.5 py-2.5 text-xs leading-relaxed text-muted-foreground">
+            {coverageText}
+          </div>
+        )}
+
+        {sourceLine && (
+          <p className="mb-2 text-xs text-muted-foreground">{sourceLine}</p>
         )}
 
         {listingsFetchStatus === "error" && (

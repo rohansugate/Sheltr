@@ -19,6 +19,8 @@ export type ListingSearchParams = {
   maxResults?: number;
 };
 
+export type ListingCoverage = "zip" | "metro" | "limited" | "fallback";
+
 export type ListingSearchResult = {
   listings: Listing[];
   sources: {
@@ -28,6 +30,8 @@ export type ListingSearchResult = {
   };
   zipCode: string;
   fetchedAt: string;
+  coverage: ListingCoverage;
+  coverageMessage?: string;
 };
 
 function jitterCoords(zipCode: string, index: number) {
@@ -65,6 +69,7 @@ function ahToListing(
     analytics: { views: 0, saves: 0, applications: 0 },
     utilitiesIncluded: "Ask landlord",
     availableDate: new Date().toISOString().slice(0, 10),
+    sourceUrl: raw.sourceUrl,
   };
 }
 
@@ -96,6 +101,7 @@ function zillowToListing(
     analytics: { views: 0, saves: 0, applications: 0 },
     utilitiesIncluded: "See Zillow listing",
     petsAllowed: undefined,
+    sourceUrl: raw.sourceUrl,
   };
 }
 
@@ -141,6 +147,7 @@ export async function searchListingsByZip(
   // 1) Section 8 — Affordable Housing.com (direct fetch works)
   let ahHtml = await fetchDirect(affordableHousingUrl(zipCode));
   let ahParsed = ahHtml ? parseAffordableHousingHtml(ahHtml, zipCode) : [];
+  let coverage: ListingCoverage = ahParsed.length > 0 ? "zip" : "limited";
 
   if (ahParsed.length < 5 && isLosAngelesZip(zipCode)) {
     const metroHtml = await fetchDirect(affordableHousingMetroUrl());
@@ -158,7 +165,10 @@ export async function searchListingsByZip(
         .filter((l) => l._miles <= 15)
         .sort((a, b) => a._miles - b._miles)
         .map(({ _miles: _, ...rest }) => rest);
+      if (ahParsed.length > 0) coverage = "metro";
     }
+  } else if (!isLosAngelesZip(zipCode)) {
+    coverage = "limited";
   }
 
   const ahListings = ahParsed.map(ahToListing);
@@ -191,7 +201,17 @@ export async function searchListingsByZip(
 
   if (listings.length === 0) {
     listings = filterByConstraints(mockListings, params, zipCode).slice(0, maxResults);
+    coverage = "fallback";
   }
+
+  const coverageMessage =
+    coverage === "limited"
+      ? "Sheltr has the deepest coverage in Los Angeles County."
+      : coverage === "metro"
+        ? "Expanded to nearby LA neighborhoods."
+        : coverage === "fallback"
+          ? "No live listings for this zip — showing LA area homes."
+          : undefined;
 
   return {
     listings,
@@ -202,5 +222,7 @@ export async function searchListingsByZip(
     },
     zipCode,
     fetchedAt: new Date().toISOString(),
+    coverage,
+    coverageMessage,
   };
 }

@@ -46,9 +46,13 @@ export async function pullDemoSync(): Promise<{
 
 export async function pushDemoSync(payload: DemoSyncPayload): Promise<boolean> {
   try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const secret = process.env.NEXT_PUBLIC_DEMO_SYNC_SECRET;
+    if (secret) headers["x-demo-sync-secret"] = secret;
+
     const res = await fetch(SYNC_PATH, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ state: payload }),
     });
     return res.ok;

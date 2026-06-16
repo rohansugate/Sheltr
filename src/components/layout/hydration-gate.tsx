@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { rehydrateLikedListings } from "@/lib/rehydrate-listings";
+import { syncLikedState } from "@/lib/store/liked";
 import { useDoorwayStore } from "@/lib/store";
 
 export function HydrationGate({ children }: { children: React.ReactNode }) {
@@ -10,23 +10,20 @@ export function HydrationGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const finish = () => {
       const state = useDoorwayStore.getState();
-      const freshLiked = rehydrateLikedListings(
-        state.likedListings,
-        state.listings,
-      );
-      if (freshLiked.length !== state.likedListings.length) {
-        useDoorwayStore.setState({ likedListings: freshLiked });
-      } else {
-        const stale = state.likedListings.some((saved) => {
-          const fresh = freshLiked.find((l) => l.id === saved.id);
+      const liked = syncLikedState(state.likedListingIds, state.listings);
+      if (
+        liked.likedListingIds.length !== state.likedListingIds.length ||
+        liked.likedListings.some((fresh, i) => {
+          const saved = state.likedListings[i];
           return (
-            fresh &&
-            (fresh.monthlyRent !== saved.monthlyRent ||
-              fresh.title !== saved.title ||
-              fresh.status !== saved.status)
+            !saved ||
+            fresh.monthlyRent !== saved.monthlyRent ||
+            fresh.title !== saved.title ||
+            fresh.status !== saved.status
           );
-        });
-        if (stale) useDoorwayStore.setState({ likedListings: freshLiked });
+        })
+      ) {
+        useDoorwayStore.setState(liked);
       }
       if (state.onboardingComplete && state.deck.length === 0) {
         state.refreshDeck();

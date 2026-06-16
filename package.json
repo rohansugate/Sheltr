@@ -12,6 +12,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "ios:sync": "npx cap sync ios",
     "ios:open": "npx cap open ios",
     "ios:setup": "npm run ios:sync && npm run ios:open"
@@ -39,6 +41,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.6"
   }
 }

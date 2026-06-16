@@ -16,10 +16,11 @@ import { useDoorwayStore } from "@/lib/store";
 import type { Listing } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
-const COMPARE_STORAGE_KEY = "sheltr-compare-ids";
-
 export default function MatchesPage() {
   const likedListings = useDoorwayStore((s) => s.likedListings);
+  const compareIds = useDoorwayStore((s) => s.compareIds);
+  const toggleCompareId = useDoorwayStore((s) => s.toggleCompareId);
+  const setCompareIds = useDoorwayStore((s) => s.setCompareIds);
   const locale = useDoorwayStore((s) => s.locale);
   const submitApplication = useDoorwayStore((s) => s.submitApplication);
   const showUiFeedback = useDoorwayStore((s) => s.showUiFeedback);
@@ -33,27 +34,10 @@ export default function MatchesPage() {
   );
   const [tab, setTab] = useState<"list" | "map" | "compare">("list");
   const [selected, setSelected] = useState<Listing | null>(null);
-  const [compareIds, setCompareIds] = useState<string[]>([]);
-  const [compareReady, setCompareReady] = useState(false);
 
   useEffect(() => {
     markSeekerApplicationUpdatesSeen();
   }, [markSeekerApplicationUpdatesSeen]);
-
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem(COMPARE_STORAGE_KEY);
-      if (saved) setCompareIds(JSON.parse(saved) as string[]);
-    } catch {
-      /* ignore */
-    }
-    setCompareReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!compareReady) return;
-    sessionStorage.setItem(COMPARE_STORAGE_KEY, JSON.stringify(compareIds));
-  }, [compareIds, compareReady]);
 
   const getAppStatus = (listingId: string) =>
     applications.find((a) => a.listingId === listingId)?.status;
@@ -68,12 +52,6 @@ export default function MatchesPage() {
       return `/messages?conversationId=convo-showing-${showing.id}`;
     }
     return null;
-  };
-
-  const toggleCompare = (id: string) => {
-    setCompareIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < 3 ? [...prev, id] : prev,
-    );
   };
 
   const compareListings = compareIds
@@ -116,7 +94,7 @@ export default function MatchesPage() {
                   locale={locale}
                   getAppStatus={getAppStatus}
                   onView={setSelected}
-                  onRemove={(id) => setCompareIds((prev) => prev.filter((x) => x !== id))}
+                  onRemove={(id) => setCompareIds(compareIds.filter((x) => x !== id))}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -145,7 +123,7 @@ export default function MatchesPage() {
                     </div>
                     <div className="flex shrink-0 flex-col justify-center gap-1">
                       {tab === "compare" && (
-                        <Button variant={compareIds.includes(listing.id) ? "primary" : "outline"} size="sm" onClick={() => toggleCompare(listing.id)}>
+                        <Button variant={compareIds.includes(listing.id) ? "primary" : "outline"} size="sm" onClick={() => toggleCompareId(listing.id)}>
                           {compareIds.includes(listing.id) ? "✓" : "+"}
                         </Button>
                       )}

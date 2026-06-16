@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { buildSyncPayload, pullDemoSync, pushDemoSync } from "@/lib/demo-sync";
 import { useDoorwayStore } from "@/lib/store";
 
-const POLL_MS = 1000;
+const POLL_MS = 4000;
 
 export function DemoSyncProvider({ children }: { children: React.ReactNode }) {
   const pushing = useRef(false);
