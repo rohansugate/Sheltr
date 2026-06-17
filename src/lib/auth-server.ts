@@ -119,20 +119,18 @@ async function fetchProfileWithAdmin(userId: string) {
 export async function lookupProfileByEmail(
   email: string,
 ): Promise<ProfileRow | null> {
-  if (!hasSupabaseEnv()) return null;
+  if (!hasSupabaseEnv() || !hasServiceRole()) return null;
 
   const normalized = normalizeEmail(email);
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("lookup_profile_by_email", {
-    p_email: normalized,
-  });
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, email, first_name, last_name, role")
+    .eq("email", normalized)
+    .maybeSingle<ProfileRow>();
 
   if (error || !data) return null;
-
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row) return null;
-
-  return row as ProfileRow;
+  return data;
 }
 
 async function requireProfileInDatabase(

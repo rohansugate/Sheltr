@@ -50,6 +50,7 @@ create trigger on_auth_user_created
   execute function public.handle_new_user();
 
 -- Email lookup for account verification at login (security definer, read-only).
+-- Superseded by 20250616120000_revoke_public_email_lookup.sql (dropped; server uses service_role).
 
 create or replace function public.lookup_profile_by_email(p_email text)
 returns table (
