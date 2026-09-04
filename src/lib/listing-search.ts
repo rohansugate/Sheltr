@@ -212,8 +212,9 @@ export async function searchListingsByZip(
   if (listings.length === 0) {
     listings = filterByConstraints(mockListings, params, zipCode).slice(0, maxResults);
     coverage = "fallback";
-  } else if (appwriteListings.length > 0 && ahListings.length === 0) {
-    coverage = coverage === "fallback" ? "limited" : coverage;
+  } else if (appwriteListings.length > 0 && ahListings.length === 0 && coverage === "limited") {
+    // Keep limited coverage messaging when Appwrite has inventory but scrapes do not.
+    coverage = "limited";
   }
 
   const coverageMessage =

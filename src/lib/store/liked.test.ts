@@ -18,7 +18,7 @@ const listings: Listing[] = [
     landlordVerified: true,
     latitude: 34,
     longitude: -118,
-    source: "SEED",
+    source: "IMPORTED",
     status: "ACTIVE",
     analytics: { views: 1, saves: 1, applications: 0 },
   },

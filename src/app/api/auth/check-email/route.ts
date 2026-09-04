@@ -16,13 +16,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       exists: true,
-      user: toAppUser({
-        id: profile.id,
-        email: profile.email,
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        role: profile.role,
-      }),
+      user: toAppUser(profile),
     });
   } catch {
     return NextResponse.json(
