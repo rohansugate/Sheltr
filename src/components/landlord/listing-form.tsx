@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ListingImage } from "@/components/ui/listing-image";
 import { compressImageFile } from "@/lib/image-utils";
+import { persistToAppwrite, uploadListingPhoto } from "@/lib/appwrite-client";
 import { CA_TRANSIT_OPTIONS, neighborhoodsForZip } from "@/lib/neighborhoods";
 import { useDoorwayStore } from "@/lib/store";
 import type { Listing, ListingInput } from "@/lib/types";
@@ -34,7 +35,9 @@ function listingToForm(listing: Listing): ListingInput {
     transitLines: listing.transitLines,
     isGroundFloor: listing.isGroundFloor,
     isSection8Approved: listing.isSection8Approved,
-    images: listing.images.filter((img) => img.startsWith("data:")),
+    images: listing.images.filter(
+      (img) => img.startsWith("data:") || img.startsWith("http"),
+    ),
   };
 }
 
@@ -100,6 +103,11 @@ export function ListingForm({
     if (photos.length >= 5) return;
     setUploading(true);
     try {
+      const uploaded = await uploadListingPhoto(file);
+      if (uploaded) {
+        setPhotos((prev) => [...prev, uploaded].slice(0, 5));
+        return;
+      }
       const dataUrl = await compressImageFile(file);
       setPhotos((prev) => [...prev, dataUrl].slice(0, 5));
     } finally {
@@ -111,7 +119,9 @@ export function ListingForm({
     if (!validate()) return;
     const payload: ListingInput = {
       ...form,
-      images: photos.filter((p) => p.startsWith("data:")),
+      images: photos.filter(
+        (p) => p.startsWith("data:") || p.startsWith("http"),
+      ),
     };
 
     if (mode === "create") {
@@ -120,6 +130,7 @@ export function ListingForm({
         setErrors({ title: "Sign in as a landlord to publish listings." });
         return;
       }
+      persistToAppwrite({ listing: result });
     } else if (listingId) {
       const ok = updateListing(listingId, payload);
       if (!ok) {
@@ -129,6 +140,10 @@ export function ListingForm({
       if (!asDraft && existing?.status === "DRAFT") {
         publishListing(listingId);
       }
+      const saved = useDoorwayStore
+        .getState()
+        .listings.find((l) => l.id === listingId);
+      if (saved) persistToAppwrite({ listing: saved });
     }
 
     router.push("/landlord");

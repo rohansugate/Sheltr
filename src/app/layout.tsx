@@ -8,6 +8,7 @@ import { HydrationGate } from "@/components/layout/hydration-gate";
 import { ActionFeedbackToast } from "@/components/layout/action-feedback";
 import { NotificationToast } from "@/components/layout/notification-toast";
 import { ThemeProvider } from "@/components/layout/theme-provider";
+import { AppwriteBootstrapProvider } from "@/components/layout/appwrite-bootstrap-provider";
 import "./globals.css";
 
 const geist = Geist({
@@ -49,17 +50,19 @@ export default function RootLayout({
     <html lang="en" className={`${geist.variable} ${playfair.variable} h-full`}>
       <body className="min-h-full antialiased">
         <ThemeProvider>
-          <DemoSyncProvider>
-            <HydrationGate>
-              <AuthSessionProvider>
-                <AuthGate>
-                  <NotificationToast />
-                  <ActionFeedbackToast />
-                  <A11yProvider>{children}</A11yProvider>
-                </AuthGate>
-              </AuthSessionProvider>
-            </HydrationGate>
-          </DemoSyncProvider>
+          <AppwriteBootstrapProvider>
+            <DemoSyncProvider>
+              <HydrationGate>
+                <AuthSessionProvider>
+                  <AuthGate>
+                    <NotificationToast />
+                    <ActionFeedbackToast />
+                    <A11yProvider>{children}</A11yProvider>
+                  </AuthGate>
+                </AuthSessionProvider>
+              </HydrationGate>
+            </DemoSyncProvider>
+          </AppwriteBootstrapProvider>
         </ThemeProvider>
       </body>
     </html>

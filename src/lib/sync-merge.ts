@@ -157,30 +157,62 @@ export function isBlockedListingTitle(title: string): boolean {
   );
 }
 
-function blockedListingIds(listings: Listing[]): Set<string> {
+function blockedListingIds(listings: Listing[] | undefined): Set<string> {
   return new Set(
-    listings.filter((l) => isBlockedListingTitle(l.title)).map((l) => l.id),
+    (listings ?? [])
+      .filter((l) => isBlockedListingTitle(l.title))
+      .map((l) => l.id),
   );
+}
+
+function emptyDemoPayload(updatedAt?: string): DemoSyncPayload {
+  return {
+    listings: [],
+    applications: [],
+    showings: [],
+    conversations: [],
+    messages: [],
+    notifications: [],
+    updatedAt: updatedAt ?? new Date().toISOString(),
+  };
+}
+
+/** Normalize partial sync payloads from older clients or bad POSTs. */
+export function normalizeDemoPayload(
+  payload: Partial<DemoSyncPayload> | null | undefined,
+): DemoSyncPayload {
+  const base = emptyDemoPayload(payload?.updatedAt);
+  if (!payload) return base;
+  return {
+    listings: payload.listings ?? base.listings,
+    applications: payload.applications ?? base.applications,
+    showings: payload.showings ?? base.showings,
+    conversations: payload.conversations ?? base.conversations,
+    messages: payload.messages ?? base.messages,
+    notifications: payload.notifications ?? base.notifications,
+    updatedAt: payload.updatedAt ?? base.updatedAt,
+  };
 }
 
 /** Remove blocked listings and related applications, showings, and messages. */
 export function sanitizeDemoPayload(payload: DemoSyncPayload): DemoSyncPayload {
-  const removed = blockedListingIds(payload.listings);
-  if (removed.size === 0) return payload;
+  const normalized = normalizeDemoPayload(payload);
+  const removed = blockedListingIds(normalized.listings);
+  if (removed.size === 0) return normalized;
 
-  const listings = payload.listings.filter((l) => !removed.has(l.id));
-  const conversations = payload.conversations.filter(
+  const listings = normalized.listings.filter((l) => !removed.has(l.id));
+  const conversations = normalized.conversations.filter(
     (c) => !removed.has(c.listingId),
   );
   const conversationIds = new Set(conversations.map((c) => c.id));
 
   return {
-    ...payload,
+    ...normalized,
     listings,
-    applications: payload.applications.filter((a) => !removed.has(a.listingId)),
-    showings: payload.showings.filter((s) => !removed.has(s.listingId)),
+    applications: normalized.applications.filter((a) => !removed.has(a.listingId)),
+    showings: normalized.showings.filter((s) => !removed.has(s.listingId)),
     conversations,
-    messages: payload.messages.filter((m) =>
+    messages: normalized.messages.filter((m) =>
       conversationIds.has(m.conversationId),
     ),
   };
@@ -191,20 +223,24 @@ export function mergeDemoPayload(
   base: DemoSyncPayload | null,
   incoming: DemoSyncPayload,
 ): DemoSyncPayload {
+  const next = normalizeDemoPayload(incoming);
+
   if (!base) {
     return sanitizeDemoPayload({
-      ...incoming,
+      ...next,
       updatedAt: new Date().toISOString(),
     });
   }
 
+  const current = normalizeDemoPayload(base);
+
   return sanitizeDemoPayload({
-    listings: mergeListings(base.listings, incoming.listings),
-    applications: mergeApplications(base.applications, incoming.applications),
-    showings: mergeShowings(base.showings, incoming.showings),
-    conversations: mergeById(base.conversations, incoming.conversations),
-    messages: mergeMessages(base.messages, incoming.messages),
-    notifications: mergeNotifications(base.notifications, incoming.notifications),
+    listings: mergeListings(current.listings, next.listings),
+    applications: mergeApplications(current.applications, next.applications),
+    showings: mergeShowings(current.showings, next.showings),
+    conversations: mergeById(current.conversations, next.conversations),
+    messages: mergeMessages(current.messages, next.messages),
+    notifications: mergeNotifications(current.notifications, next.notifications),
     updatedAt: new Date().toISOString(),
   });
 }

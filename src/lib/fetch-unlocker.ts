@@ -46,7 +46,7 @@ export async function fetchDirect(url: string): Promise<string | null> {
         Accept: "text/html,application/xhtml+xml",
       },
       signal: AbortSignal.timeout(20_000),
-      next: { revalidate: 3600 },
+      cache: "no-store",
     });
     if (!res.ok) return null;
     return res.text();

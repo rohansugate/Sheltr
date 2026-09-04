@@ -36,14 +36,20 @@ function parseBathrooms(raw: string): number {
   return single ? Number(single[1]) : 1;
 }
 
+/** Split HTML into premium listing cards without catastrophic backtracking. */
+function extractCards(html: string): string[] {
+  const marker = "<div class='premiumcard jq-cardhover'";
+  const parts = html.split(marker);
+  if (parts.length < 2) return [];
+  return parts.slice(1).map((part) => marker + part);
+}
+
 export function parseAffordableHousingHtml(
   html: string,
   targetZip?: string,
 ): ParsedAffordableListing[] {
-  const cards = html.match(
-    /<div class='premiumcard jq-cardhover'[\s\S]*?(?=<div class='premiumcard jq-cardhover'|<div class="paging-wrap|$)/g,
-  );
-  if (!cards?.length) return [];
+  const cards = extractCards(html);
+  if (!cards.length) return [];
 
   const results: ParsedAffordableListing[] = [];
 
@@ -52,9 +58,8 @@ export function parseAffordableHousingHtml(
     const communityId = communityMatch?.[1];
     if (!communityId) continue;
 
-    const priceMatch = card.match(
-      /<div class='premiumcard--price'>([^<]+)<\/div>/,
-    );
+    // Price markup nests badge HTML inside the price div — take text before nested tags.
+    const priceMatch = card.match(/<div class='premiumcard--price'>([^<]+)/);
     const monthlyRent = priceMatch ? parsePrice(priceMatch[1]) : 0;
     if (!monthlyRent) continue;
 

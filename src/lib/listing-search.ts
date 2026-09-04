@@ -27,6 +27,7 @@ export type ListingSearchResult = {
     affordableHousing: number;
     zillow: number;
     zillowConfigured: boolean;
+    appwrite?: number;
   };
   zipCode: string;
   fetchedAt: string;
@@ -144,6 +145,15 @@ export async function searchListingsByZip(
 
   const maxResults = params.maxResults ?? 40;
 
+  // 0) Appwrite-hosted listings (manual + seeded)
+  let appwriteListings: Listing[] = [];
+  try {
+    const { listActiveListings } = await import("./appwrite/data");
+    appwriteListings = await listActiveListings(80);
+  } catch {
+    appwriteListings = [];
+  }
+
   // 1) Section 8 — Affordable Housing.com (direct fetch works)
   let ahHtml = await fetchDirect(affordableHousingUrl(zipCode));
   let ahParsed = ahHtml ? parseAffordableHousingHtml(ahHtml, zipCode) : [];
@@ -190,7 +200,7 @@ export async function searchListingsByZip(
   const seen = new Set<string>();
   const merged: Listing[] = [];
 
-  for (const listing of [...ahListings, ...zillowListings]) {
+  for (const listing of [...appwriteListings, ...ahListings, ...zillowListings]) {
     const key = listing.title.toLowerCase().replace(/\s+/g, " ").slice(0, 40);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -202,6 +212,8 @@ export async function searchListingsByZip(
   if (listings.length === 0) {
     listings = filterByConstraints(mockListings, params, zipCode).slice(0, maxResults);
     coverage = "fallback";
+  } else if (appwriteListings.length > 0 && ahListings.length === 0) {
+    coverage = coverage === "fallback" ? "limited" : coverage;
   }
 
   const coverageMessage =
@@ -219,6 +231,7 @@ export async function searchListingsByZip(
       affordableHousing: ahListings.length,
       zillow: zillowListings.length,
       zillowConfigured,
+      appwrite: appwriteListings.length,
     },
     zipCode,
     fetchedAt: new Date().toISOString(),

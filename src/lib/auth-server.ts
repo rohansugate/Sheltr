@@ -1,6 +1,20 @@
+import { ID, Query } from "node-appwrite";
+import {
+  createAdminClient,
+  createSessionClient,
+} from "./appwrite/admin";
+import {
+  getAppwriteEndpoint,
+  getAppwriteProjectId,
+  hasAppwriteEnv,
+  hasAppwritePublicEnv,
+} from "./appwrite/config";
+import {
+  clearSessionCookie,
+  getSessionSecret,
+  setSessionCookie,
+} from "./appwrite/session";
 import type { User, UserRole } from "./types";
-import { createAdminClient } from "./supabase/admin";
-import { createClient } from "./supabase/server";
 
 export interface PublicAuthUser {
   id: string;
@@ -10,34 +24,11 @@ export interface PublicAuthUser {
   role: "SEEKER" | "LANDLORD";
 }
 
-interface ProfileRow {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: "SEEKER" | "LANDLORD";
-}
-
-function hasSupabaseEnv() {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
-
-function hasServiceRole() {
-  return Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
-}
-
-function profileToPublicUser(profile: ProfileRow): PublicAuthUser {
-  return {
-    id: profile.id,
-    email: profile.email,
-    firstName: profile.first_name,
-    lastName: profile.last_name,
-    role: profile.role,
-  };
-}
+type Prefs = {
+  role?: string;
+  firstName?: string;
+  lastName?: string;
+};
 
 export function toAppUser(publicUser: PublicAuthUser): User {
   return {
@@ -56,14 +47,15 @@ export function normalizeEmail(email: string) {
 
 function mapAuthError(message: string): string {
   const lower = message.toLowerCase();
-  if (lower.includes("already registered") || lower.includes("already exists")) {
+  if (lower.includes("already exists") || lower.includes("user_already_exists")) {
     return "An account with this email already exists.";
   }
-  if (lower.includes("invalid login credentials")) {
+  if (
+    lower.includes("invalid credentials") ||
+    lower.includes("invalid `email` or `password`") ||
+    lower.includes("user_invalid_credentials")
+  ) {
     return "Invalid email or password.";
-  }
-  if (lower.includes("email not confirmed")) {
-    return "Confirm your email before signing in.";
   }
   if (lower.includes("password")) {
     return message;
@@ -75,98 +67,99 @@ function validatePassword(password: string, forSignup = false): string | null {
   if (!password || password.trim().length === 0) {
     return "Password is required.";
   }
-  if (forSignup && password.length < 6) {
-    return "Password must be at least 6 characters.";
+  if (forSignup && password.length < 8) {
+    return "Password must be at least 8 characters.";
   }
   return null;
 }
 
-/** Sign in after signup to verify Supabase saved the password and set session cookies. */
-async function establishPasswordSession(
+function prefsToPublicUser(
+  id: string,
   email: string,
-  password: string,
-): Promise<{ error: string } | null> {
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({
-    email: normalizeEmail(email),
-    password,
-  });
-  if (error) {
-    return { error: mapAuthError(error.message) };
+  prefs: Prefs,
+  name?: string,
+): PublicAuthUser | { error: string } {
+  const role = prefs.role === "LANDLORD" ? "LANDLORD" : prefs.role === "SEEKER" ? "SEEKER" : null;
+  if (!role) {
+    return { error: "Account not found in Sheltr. Please sign up first." };
   }
-  return null;
-}
 
-async function fetchProfile(userId: string) {
-  const supabase = await createClient();
-  return supabase
-    .from("profiles")
-    .select("id, email, first_name, last_name, role")
-    .eq("id", userId)
-    .single<ProfileRow>();
-}
+  let firstName = (prefs.firstName ?? "").trim();
+  let lastName = (prefs.lastName ?? "").trim();
+  if ((!firstName || !lastName) && name) {
+    const parts = name.trim().split(/\s+/);
+    firstName = firstName || parts[0] || "User";
+    lastName = lastName || parts.slice(1).join(" ") || "Sheltr";
+  }
 
-async function fetchProfileWithAdmin(userId: string) {
-  if (!hasServiceRole()) return fetchProfile(userId);
-  const admin = createAdminClient();
-  return admin
-    .from("profiles")
-    .select("id, email, first_name, last_name, role")
-    .eq("id", userId)
-    .single<ProfileRow>();
+  return {
+    id,
+    email,
+    firstName: firstName || "User",
+    lastName: lastName || "Sheltr",
+    role,
+  };
 }
 
 export async function lookupProfileByEmail(
   email: string,
-): Promise<ProfileRow | null> {
-  if (!hasSupabaseEnv() || !hasServiceRole()) return null;
+): Promise<PublicAuthUser | null> {
+  if (!hasAppwriteEnv()) return null;
 
   const normalized = normalizeEmail(email);
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("profiles")
-    .select("id, email, first_name, last_name, role")
-    .eq("email", normalized)
-    .maybeSingle<ProfileRow>();
+  const { users } = createAdminClient();
+  const result = await users.list({
+    queries: [Query.equal("email", normalized), Query.limit(1)],
+  });
+  const user = result.users?.[0];
+  if (!user) return null;
 
-  if (error || !data) return null;
-  return data;
-}
-
-async function requireProfileInDatabase(
-  userId: string,
-  email?: string,
-): Promise<ProfileRow | { error: string }> {
-  const { data: profile, error } = await fetchProfileWithAdmin(userId);
-  if (error || !profile) {
-    return { error: "Account not found in Sheltr. Please sign up first." };
-  }
-  if (email && normalizeEmail(profile.email) !== normalizeEmail(email)) {
-    return { error: "Account verification failed. Please try again." };
-  }
-  return profile;
+  const mapped = prefsToPublicUser(
+    user.$id,
+    user.email,
+    (user.prefs ?? {}) as Prefs,
+    user.name,
+  );
+  if ("error" in mapped) return null;
+  return mapped;
 }
 
 export async function getSessionUser(): Promise<User | null> {
-  if (!hasSupabaseEnv()) return null;
+  if (!hasAppwritePublicEnv()) return null;
 
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return null;
+  const secret = await getSessionSecret();
+  if (!secret) return null;
 
-  const verified = await requireProfileInDatabase(data.user.id);
-  if ("error" in verified) {
-    await signOutSession();
+  try {
+    const { account } = createSessionClient(secret);
+    const user = await account.get();
+    const mapped = prefsToPublicUser(
+      user.$id,
+      user.email,
+      (user.prefs ?? {}) as Prefs,
+      user.name,
+    );
+    if ("error" in mapped) {
+      await signOutSession();
+      return null;
+    }
+    return toAppUser(mapped);
+  } catch {
     return null;
   }
-
-  return toAppUser(profileToPublicUser(verified));
 }
 
 export async function signOutSession() {
-  if (!hasSupabaseEnv()) return;
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  const secret = await getSessionSecret();
+  if (secret && hasAppwritePublicEnv()) {
+    try {
+      const { account } = createSessionClient(secret);
+      await account.deleteSession({ sessionId: "current" });
+    } catch {
+      // Session already invalid
+    }
+  }
+  await clearSessionCookie();
 }
 
 export async function createUser(input: {
@@ -176,9 +169,10 @@ export async function createUser(input: {
   lastName: string;
   role: "SEEKER" | "LANDLORD";
 }): Promise<{ user: PublicAuthUser } | { error: string }> {
-  if (!hasSupabaseEnv()) {
+  if (!hasAppwriteEnv()) {
     return {
-      error: "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      error:
+        "Appwrite is not configured. Add NEXT_PUBLIC_APPWRITE_ENDPOINT, NEXT_PUBLIC_APPWRITE_PROJECT_ID, and APPWRITE_API_KEY.",
     };
   }
 
@@ -193,9 +187,7 @@ export async function createUser(input: {
   }
 
   const passwordError = validatePassword(input.password, true);
-  if (passwordError) {
-    return { error: passwordError };
-  }
+  if (passwordError) return { error: passwordError };
 
   if (!input.firstName.trim() || !input.lastName.trim()) {
     return { error: "First and last name are required." };
@@ -204,96 +196,103 @@ export async function createUser(input: {
     return { error: "Choose tenant or landlord." };
   }
 
-  const metadata = {
-    first_name: input.firstName.trim(),
-    last_name: input.lastName.trim(),
-    role: input.role,
-  };
+  const { users } = createAdminClient();
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
 
-  let userId: string | null = null;
+  try {
+    const created = await users.create({
+      userId: ID.unique(),
+      email,
+      password: input.password,
+      name: `${firstName} ${lastName}`,
+    });
 
-  // Passwords are hashed and stored by Supabase Auth in auth.users (never in profiles).
-  const supabase = await createClient();
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email,
-    password: input.password,
-    options: { data: metadata },
-  });
+    await users.updatePrefs({
+      userId: created.$id,
+      prefs: {
+        role: input.role,
+        firstName,
+        lastName,
+      },
+    });
 
-  if (authError || !authData.user) {
-    if (hasServiceRole()) {
-      const admin = createAdminClient();
-      const { data: adminData, error: adminError } = await admin.auth.admin.createUser({
-        email,
-        password: input.password,
-        email_confirm: true,
-        user_metadata: metadata,
-      });
-      if (adminError || !adminData.user) {
-        return { error: mapAuthError(adminError?.message ?? authError?.message ?? "Could not create account.") };
-      }
-      userId = adminData.user.id;
-    } else {
-      return { error: mapAuthError(authError?.message ?? "Could not create account.") };
-    }
-  } else {
-    userId = authData.user.id;
-  }
+    await users.updateEmailVerification({
+      userId: created.$id,
+      emailVerification: true,
+    });
 
-  const { data: profile } = await fetchProfileWithAdmin(userId);
-  if (!profile) {
-    return { error: "Account was created but not verified in Sheltr. Try logging in." };
-  }
+    const session = await users.createSession({ userId: created.$id });
+    await setSessionCookie(session.secret);
 
-  const sessionError = await establishPasswordSession(email, input.password);
-  if (sessionError) {
     return {
-      error:
-        "Account created but password could not be verified. Try logging in with your password.",
+      user: {
+        id: created.$id,
+        email,
+        firstName,
+        lastName,
+        role: input.role,
+      },
     };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not create account.";
+    return { error: mapAuthError(message) };
   }
-
-  return { user: profileToPublicUser(profile) };
 }
 
 export async function authenticateUser(
   email: string,
   password: string,
 ): Promise<{ user: PublicAuthUser } | { error: string }> {
-  if (!hasSupabaseEnv()) {
+  if (!hasAppwritePublicEnv()) {
     return {
-      error: "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      error:
+        "Appwrite is not configured. Add NEXT_PUBLIC_APPWRITE_ENDPOINT and NEXT_PUBLIC_APPWRITE_PROJECT_ID.",
     };
   }
 
   const normalizedEmail = normalizeEmail(email);
   const passwordError = validatePassword(password);
-  if (passwordError) {
-    return { error: passwordError };
-  }
+  if (passwordError) return { error: passwordError };
 
-  const knownProfile = await lookupProfileByEmail(normalizedEmail);
-  if (!knownProfile) {
+  const known = await lookupProfileByEmail(normalizedEmail);
+  if (!known) {
     return { error: "No account found with this email. Create one first." };
   }
 
-  const supabase = await createClient();
+  try {
+    // Validate password with the public Account email-session endpoint.
+    const endpoint = getAppwriteEndpoint();
+    const projectId = getAppwriteProjectId();
+    const res = await fetch(`${endpoint}/account/sessions/email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Appwrite-Project": projectId,
+      },
+      body: JSON.stringify({
+        email: normalizedEmail,
+        password,
+      }),
+    });
 
-  // Supabase Auth checks the password against the hashed value in auth.users.
-  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email: normalizedEmail,
-    password,
-  });
+    if (!res.ok) {
+      const payload = (await res.json().catch(() => null)) as {
+        message?: string;
+      } | null;
+      return {
+        error: mapAuthError(payload?.message ?? "Invalid email or password."),
+      };
+    }
 
-  if (authError || !authData.user) {
-    return { error: mapAuthError(authError?.message ?? "Invalid email or password.") };
+    // REST often omits session secret server-side; mint an admin session after password check.
+    const { users } = createAdminClient();
+    const session = await users.createSession({ userId: known.id });
+    await setSessionCookie(session.secret);
+
+    return { user: known };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Invalid email or password.";
+    return { error: mapAuthError(message) };
   }
-
-  const verified = await requireProfileInDatabase(authData.user.id, normalizedEmail);
-  if ("error" in verified) {
-    await signOutSession();
-    return { error: verified.error };
-  }
-
-  return { user: profileToPublicUser(verified) };
 }

@@ -10,6 +10,18 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "images.unsplash.com",
       },
+      {
+        protocol: "https",
+        hostname: "sfo.cloud.appwrite.io",
+      },
+      {
+        protocol: "https",
+        hostname: "*.cloud.appwrite.io",
+      },
+      {
+        protocol: "https",
+        hostname: "photouploader.affordablehousing.com",
+      },
     ],
   },
 };

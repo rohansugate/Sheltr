@@ -26,6 +26,7 @@ import type {
   UserRole,
   LandlordSession,
 } from "./types";
+import { persistToAppwrite } from "./appwrite-client";
 import {
   DEFAULT_IMAGE,
   mockLandlord,
@@ -836,6 +837,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             },
           ),
         });
+        persistToAppwrite({ application: app });
         return true;
       },
 
@@ -885,6 +887,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             },
           ),
         });
+        persistToAppwrite({ showing });
       },
 
       acceptShowing: (id, message) => {
@@ -1073,6 +1076,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             recipientOptions,
           ),
         });
+        persistToAppwrite({ message: msg });
       },
 
       ensureMessagingReady: () => {

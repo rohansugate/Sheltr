@@ -156,14 +156,23 @@ export default function AuthPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Something went wrong.");
+        const msg = data.error ?? "Something went wrong.";
+        const authDown =
+          /fetch failed|not configured|unavailable|ENOTFOUND/i.test(msg);
+        setError(
+          authDown
+            ? `${msg} Auth is temporarily offline — use Quick demo on the home page.`
+            : msg,
+        );
         return;
       }
 
       loginUser(data.user);
       redirectAfterAuth(data.user);
     } catch {
-      setError("Network error. Check your connection and try again.");
+      setError(
+        "Network error. If auth is down, use Quick demo on the home page.",
+      );
     } finally {
       setLoading(false);
     }

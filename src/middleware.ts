@@ -1,7 +1,15 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  hasAppwritePublicEnv,
+  SESSION_COOKIE,
+} from "@/lib/appwrite/config";
 
-const PUBLIC_PREFIXES = ["/auth", "/api/auth", "/api/listings/search"];
+const PUBLIC_PREFIXES = [
+  "/auth",
+  "/api/auth",
+  "/api/listings/search",
+  "/api/bootstrap",
+];
 const DEMO_BYPASS =
   process.env.ALLOW_DEMO_BYPASS === "true" ||
   process.env.NEXT_PUBLIC_ALLOW_DEMO_BYPASS === "true";
@@ -24,31 +32,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname === "/api/demo/sync" && request.method === "GET") {
-    return NextResponse.next();
-  }
-
-  if (pathname === "/api/demo/sync" && request.method === "POST") {
-    const secret = process.env.DEMO_SYNC_SECRET;
-    if (secret) {
-      const header = request.headers.get("x-demo-sync-secret");
-      if (header !== secret) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (pathname === "/api/demo/sync") {
+    if (request.method === "GET") return NextResponse.next();
+    if (request.method === "POST") {
+      const secret = process.env.DEMO_SYNC_SECRET;
+      if (secret) {
+        const header = request.headers.get("x-demo-sync-secret");
+        if (header !== secret) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
       }
+      return NextResponse.next();
     }
-    return NextResponse.next();
   }
 
   if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url || !key) {
+  // Keep middleware edge-safe: only check cookie presence.
+  // Full session validation happens in API routes via auth-server.
+  if (!hasAppwritePublicEnv()) {
     if (DEMO_BYPASS) return NextResponse.next();
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Auth not configured" }, { status: 503 });
@@ -56,31 +60,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  let response = NextResponse.next({ request });
-
-  const supabase = createServerClient(url, key, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => {
-          request.cookies.set(name, value);
-        });
-        response = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    if (DEMO_BYPASS) return response;
+  const session = request.cookies.get(SESSION_COOKIE)?.value;
+  if (!session) {
+    if (DEMO_BYPASS) return NextResponse.next();
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -89,7 +71,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {

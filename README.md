@@ -50,7 +50,7 @@ When deployed on Vercel with Upstash Redis, two phones can demo the full flow in
 | Framework | Next.js 16 (App Router), React 19, TypeScript |
 | Styling | Tailwind CSS v4 |
 | Client state | Zustand + localStorage persistence |
-| Auth | Supabase Auth (email/password, tenant & landlord roles) |
+| Auth + data | Appwrite (Auth, Databases, Storage) |
 | Demo sync | Upstash Redis (optional; in-memory fallback locally) |
 | Mobile | Capacitor (iOS) + Expo dev client shell |
 | Hosting | Vercel |
@@ -68,6 +68,7 @@ When deployed on Vercel with Upstash Redis, two phones can demo the full flow in
 
 ```bash
 npm install
+npm run setup:appwrite   # creates Sheltr DB, collections, image bucket
 npm run dev
 ```
 
@@ -79,19 +80,12 @@ Copy `.env.example` to `.env.local` and fill in:
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `NEXT_PUBLIC_SUPABASE_URL` | For auth | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | For auth | Supabase anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | For auth | Server-side profile creation |
-| `UPSTASH_REDIS_REST_URL` | For sync + search cache | Upstash Redis REST URL |
-| `UPSTASH_REDIS_REST_TOKEN` | For sync + search cache | Upstash Redis token |
-| `BRIGHT_DATA_API_TOKEN` | For Zillow search | Bright Data API token (Web Unlocker) |
-| `BRIGHT_DATA_UNLOCKER_ZONE` | Optional | Unlocker zone (default `web_unlocker1`) |
-| `ALLOW_DEMO_BYPASS` | Hackathon demo | Skip server auth when `true` |
+| `NEXT_PUBLIC_APPWRITE_ENDPOINT` | Yes | Appwrite API endpoint |
+| `NEXT_PUBLIC_APPWRITE_PROJECT_ID` | Yes | Appwrite project ID |
+| `APPWRITE_API_KEY` | Yes | Server API key (`users` + `databases` + `storage` scopes) |
+| `BRIGHT_DATA_API_TOKEN` | For Zillow | Bright Data Web Unlocker token |
+| `ALLOW_DEMO_BYPASS` | Hackathon demo | Skip auth when `true` |
 | `NEXT_PUBLIC_ALLOW_DEMO_BYPASS` | Hackathon demo | Allow role switcher without login |
-| `DEMO_SYNC_SECRET` | Production sync | Protects `POST /api/demo/sync` |
-| `NEXT_PUBLIC_DEMO_SYNC_SECRET` | Production sync | Client header for demo sync POST |
-
-Without Supabase, set `ALLOW_DEMO_BYPASS=true` for local demo mode. Without Redis, sync and search cache use in-memory fallback on a single instance.
 
 ---
 

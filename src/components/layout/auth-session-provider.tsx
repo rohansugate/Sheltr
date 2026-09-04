@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { useDoorwayStore } from "@/lib/store";
 
+const DEMO_BYPASS = process.env.NEXT_PUBLIC_ALLOW_DEMO_BYPASS === "true";
+
 export function AuthSessionProvider({ children }: { children: React.ReactNode }) {
   const loginUser = useDoorwayStore((s) => s.loginUser);
   const logoutUser = useDoorwayStore((s) => s.logoutUser);
@@ -23,6 +25,9 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
           }
           return;
         }
+
+        // Keep hackathon/demo sessions when auth is offline or unused
+        if (DEMO_BYPASS) return;
 
         if (local && !cancelled) {
           logoutUser();
