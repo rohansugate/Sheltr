@@ -155,7 +155,7 @@ export async function searchListingsByZip(
   }
 
   // 1) Section 8 — Affordable Housing.com (direct fetch works)
-  let ahHtml = await fetchDirect(affordableHousingUrl(zipCode));
+  const ahHtml = await fetchDirect(affordableHousingUrl(zipCode));
   let ahParsed = ahHtml ? parseAffordableHousingHtml(ahHtml, zipCode) : [];
   let coverage: ListingCoverage = ahParsed.length > 0 ? "zip" : "limited";
 
@@ -174,7 +174,10 @@ export async function searchListingsByZip(
         })
         .filter((l) => l._miles <= 15)
         .sort((a, b) => a._miles - b._miles)
-        .map(({ _miles: _, ...rest }) => rest);
+        .map(({ _miles, ...rest }) => {
+          void _miles;
+          return rest;
+        });
       if (ahParsed.length > 0) coverage = "metro";
     }
   } else if (!isLosAngelesZip(zipCode)) {

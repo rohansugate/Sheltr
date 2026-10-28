@@ -33,7 +33,7 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
           logoutUser();
         }
       } catch {
-        // Offline or Supabase not configured — demo mode still works
+        // Offline or Appwrite not configured — demo mode still works
       }
     }
 

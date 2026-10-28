@@ -1,5 +1,5 @@
 import type { Application, Showing } from "./types";
-import { mockLandlord, mockSeeker } from "./mock-data";
+import { mockSeeker } from "./mock-data";
 
 export const SEED_SHOWINGS: Showing[] = [
   {

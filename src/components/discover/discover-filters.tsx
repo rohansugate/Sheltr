@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { t, type TranslationKey } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 import { neighborhoodsForZip } from "@/lib/neighborhoods";
 import { useDoorwayStore } from "@/lib/store";
 

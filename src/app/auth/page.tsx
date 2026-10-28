@@ -67,15 +67,18 @@ export default function AuthPage() {
   const [checking, setChecking] = useState(false);
   const [verifiedAccount, setVerifiedAccount] = useState<VerifiedAccount | null>(null);
 
-  useEffect(() => {
+  const paramsKey = searchParams.toString();
+  const [syncedParamsKey, setSyncedParamsKey] = useState(paramsKey);
+  if (paramsKey !== syncedParamsKey) {
+    setSyncedParamsKey(paramsKey);
     const role = searchParams.get("role");
     if (role === "LANDLORD" || role === "SEEKER") {
       setSignupRole(role);
     }
     const m = searchParams.get("mode");
     if (m === "login" || m === "signup") setMode(m);
-    else if (searchParams.get("switch") === "1") setMode("login");
-  }, [searchParams]);
+    else if (isSwitching) setMode("login");
+  }
 
   useEffect(() => {
     if (!currentUser || isSwitching) return;
@@ -193,7 +196,7 @@ export default function AuthPage() {
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
           Accounts are verified against Sheltr&apos;s database. Passwords are
-          stored securely by Supabase when you sign up.
+          stored securely by Appwrite when you sign up.
         </p>
       </div>
 

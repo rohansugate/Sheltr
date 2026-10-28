@@ -49,13 +49,16 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
   const [sending, setSending] = useState(false);
   const threadEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const fromUrl = searchParams.get("conversationId");
-    if (fromUrl && myConversations.some((c) => c.id === fromUrl)) {
-      setActiveId(fromUrl);
-      markConversationRead(fromUrl, role);
-    }
-  }, [searchParams, myConversations, role, markConversationRead]);
+  const conversationIdFromUrl = searchParams.get("conversationId");
+  const [appliedUrlId, setAppliedUrlId] = useState<string | null>(null);
+  if (
+    conversationIdFromUrl &&
+    conversationIdFromUrl !== appliedUrlId &&
+    myConversations.some((c) => c.id === conversationIdFromUrl)
+  ) {
+    setAppliedUrlId(conversationIdFromUrl);
+    setActiveId(conversationIdFromUrl);
+  }
 
   const active = myConversations.find((c) => c.id === activeId);
   const thread = active

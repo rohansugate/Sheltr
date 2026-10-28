@@ -29,7 +29,6 @@ import type {
 import { persistToAppwrite } from "./appwrite-client";
 import {
   DEFAULT_IMAGE,
-  mockLandlord,
   mockListings,
   mockSeeker,
   zipToCoords,
@@ -1387,7 +1386,7 @@ export const useDoorwayStore = create<DoorwayState>()(
     {
       name: "doorway-store",
       version: 13,
-      migrate: (persisted, version) => {
+      migrate: (persisted) => {
         const state = persisted as Partial<DoorwayState> & {
           likedListings?: Listing[];
         };

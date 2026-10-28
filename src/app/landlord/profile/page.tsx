@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LandlordShell } from "@/components/layout/landlord-shell";
 import { DoorwayHeader } from "@/components/layout/doorway-header";
-import { RoleSwitcher } from "@/components/layout/role-switcher";
 import { Button } from "@/components/ui/button";
 import { displayName, initials, resolveLandlord } from "@/lib/current-user";
 import { signOutAccount, switchAccount } from "@/lib/auth-client";
