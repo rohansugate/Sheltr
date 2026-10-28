@@ -71,10 +71,11 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
     threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [thread.length, activeId]);
 
+  const activeConversationId = active?.id;
   useEffect(() => {
-    if (!active) return;
-    markConversationRead(active.id, role);
-  }, [active, thread.length, role, markConversationRead]);
+    if (!activeConversationId) return;
+    markConversationRead(activeConversationId, role);
+  }, [activeConversationId, thread.length, role, markConversationRead]);
 
   const unreadFor = (conversationId: string) => {
     const convo = myConversations.find((c) => c.id === conversationId);

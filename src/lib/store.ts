@@ -1224,11 +1224,23 @@ export const useSheltrStore = create<SheltrState>()(
           .filter((m) => m.conversationId === conversationId)
           .sort((a, b) => b.sentAt.localeCompare(a.sentAt));
         const latestIncoming = thread.find((m) => m.senderRole !== role)?.sentAt;
-        const readAt = latestIncoming ?? new Date().toISOString();
         const convo = conversations.find((c) => c.id === conversationId);
         const previous =
           role === "SEEKER" ? convo?.seekerLastReadAt : convo?.landlordLastReadAt;
-        if (convo && (!previous || previous < readAt)) {
+        const readAt = latestIncoming ?? previous ?? new Date().toISOString();
+        const nextNotifications = markConversationNotificationsRead(
+          notifications,
+          conversationId,
+          role,
+          myId,
+        );
+        const advanced = !previous || previous < readAt;
+        const notificationsChanged = nextNotifications.some(
+          (n, i) => n.read !== notifications[i]?.read,
+        );
+        // No-op when nothing changed; otherwise effects keyed on conversations loop.
+        if (!advanced && !notificationsChanged) return;
+        if (convo && advanced) {
           persistToAppwrite({ conversationRead: { conversationId, readAt } });
         }
 
@@ -1244,12 +1256,7 @@ export const useSheltrStore = create<SheltrState>()(
                 }
               : c,
           ),
-          notifications: markConversationNotificationsRead(
-            notifications,
-            conversationId,
-            role,
-            myId,
-          ),
+          notifications: notificationsChanged ? nextNotifications : notifications,
         });
       },
 
