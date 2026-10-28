@@ -1,4 +1,4 @@
-import { useDoorwayStore } from "./store";
+import { useSheltrStore } from "./store";
 
 export async function signOutAccount() {
   try {
@@ -6,7 +6,7 @@ export async function signOutAccount() {
   } catch {
     // Clear local state even if network fails
   }
-  useDoorwayStore.getState().logoutUser();
+  useSheltrStore.getState().logoutUser();
 }
 
 export async function switchAccount(options?: {

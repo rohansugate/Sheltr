@@ -36,7 +36,7 @@ export function ListingDetail({
   onScheduleShowing,
 }: ListingDetailProps) {
   const [mode, setMode] = useState<DetailMode>("view");
-  const [photoIndex, setPhotoIndex] = useState(0);
+  const [photoIndex] = useState(0);
   const [packet, setPacket] = useState<ApplicationPacket>({
     voucherSize: 2,
     maxRent: 1600,

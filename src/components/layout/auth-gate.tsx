@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { homePathForUser, isLandlordPath, isTenantPath } from "@/lib/auth-routing";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 
 const PUBLIC_PATHS = new Set(["/", "/auth"]);
 const DEMO_BYPASS = process.env.NEXT_PUBLIC_ALLOW_DEMO_BYPASS === "true";
@@ -11,9 +11,9 @@ const DEMO_BYPASS = process.env.NEXT_PUBLIC_ALLOW_DEMO_BYPASS === "true";
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const currentUser = useDoorwayStore((s) => s.currentUser);
-  const role = useDoorwayStore((s) => s.role);
-  const onboardingComplete = useDoorwayStore((s) => s.onboardingComplete);
+  const currentUser = useSheltrStore((s) => s.currentUser);
+  const role = useSheltrStore((s) => s.role);
+  const onboardingComplete = useSheltrStore((s) => s.onboardingComplete);
 
   useEffect(() => {
     if (currentUser && pathname === "/auth") {

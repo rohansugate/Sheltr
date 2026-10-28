@@ -3,10 +3,10 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DoorwayHeader } from "@/components/layout/doorway-header";
+import { SheltrHeader } from "@/components/layout/sheltr-header";
 import { t } from "@/lib/i18n";
 import { homePathForUser } from "@/lib/auth-routing";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import type { UserRole } from "@/lib/types";
 
 const roles: { role: UserRole; title: string; description: string; href: string }[] = [
@@ -25,7 +25,7 @@ const roles: { role: UserRole; title: string; description: string; href: string 
 ];
 
 function startTenantDemo(router: ReturnType<typeof useRouter>) {
-  const store = useDoorwayStore.getState();
+  const store = useSheltrStore.getState();
   store.setRole("SEEKER");
   store.setConstraints({
     housingSituation: "SHELTER",
@@ -41,13 +41,13 @@ function startTenantDemo(router: ReturnType<typeof useRouter>) {
 }
 
 function startLandlordDemo(router: ReturnType<typeof useRouter>) {
-  useDoorwayStore.getState().setRole("LANDLORD");
+  useSheltrStore.getState().setRole("LANDLORD");
   router.push("/landlord/applicants");
 }
 
 export default function HomePage() {
   const router = useRouter();
-  const { onboardingComplete, locale, role, currentUser } = useDoorwayStore();
+  const { onboardingComplete, locale, role, currentUser } = useSheltrStore();
 
   useEffect(() => {
     if (!currentUser) {
@@ -66,8 +66,8 @@ export default function HomePage() {
   };
 
   return (
-    <div className="app-shell doorway-gradient flex min-h-dvh flex-col">
-      <DoorwayHeader subtitle="Section 8 Housing Match" className="pt-12" />
+    <div className="app-shell sheltr-gradient flex min-h-dvh flex-col">
+      <SheltrHeader subtitle="Section 8 Housing Match" className="pt-12" />
 
       <div className="px-6 pb-4 text-center">
         <p className="font-serif text-xl leading-snug">{t(locale, "tagline")}</p>

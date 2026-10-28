@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
-import { DoorwayHeader } from "@/components/layout/doorway-header";
+import { SheltrHeader } from "@/components/layout/sheltr-header";
 import { RoleSwitcher } from "@/components/layout/role-switcher";
 import { DiscoverFilters } from "@/components/discover/discover-filters";
 import { SwipeDeck } from "@/components/discover/swipe-deck";
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { SEEKER_DECK_SIZE } from "@/lib/mock-data";
 import { buildListingFetchKey } from "@/lib/store/defaults";
 import { t } from "@/lib/i18n";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import type { Locale } from "@/lib/types";
 import type { ListingCoverage } from "@/lib/listing-search";
 
@@ -73,18 +73,18 @@ function sourceSummaryLine(
 
 export default function DiscoverPage() {
   const router = useRouter();
-  const locale = useDoorwayStore((s) => s.locale);
-  const onboardingComplete = useDoorwayStore((s) => s.onboardingComplete);
-  const constraints = useDoorwayStore((s) => s.constraints);
-  const completeOnboarding = useDoorwayStore((s) => s.completeOnboarding);
-  const refreshDeck = useDoorwayStore((s) => s.refreshDeck);
-  const fetchListingsByZip = useDoorwayStore((s) => s.fetchListingsByZip);
-  const listingsFetchStatus = useDoorwayStore((s) => s.listingsFetchStatus);
-  const listingsFetchKey = useDoorwayStore((s) => s.listingsFetchKey);
-  const listingsFetchedAt = useDoorwayStore((s) => s.listingsFetchedAt);
-  const listingsMeta = useDoorwayStore((s) => s.listingsMeta);
-  const listingsCoverage = useDoorwayStore((s) => s.listingsCoverage);
-  const deck = useDoorwayStore((s) => s.deck);
+  const locale = useSheltrStore((s) => s.locale);
+  const onboardingComplete = useSheltrStore((s) => s.onboardingComplete);
+  const constraints = useSheltrStore((s) => s.constraints);
+  const completeOnboarding = useSheltrStore((s) => s.completeOnboarding);
+  const refreshDeck = useSheltrStore((s) => s.refreshDeck);
+  const fetchListingsByZip = useSheltrStore((s) => s.fetchListingsByZip);
+  const listingsFetchStatus = useSheltrStore((s) => s.listingsFetchStatus);
+  const listingsFetchKey = useSheltrStore((s) => s.listingsFetchKey);
+  const listingsFetchedAt = useSheltrStore((s) => s.listingsFetchedAt);
+  const listingsMeta = useSheltrStore((s) => s.listingsMeta);
+  const listingsCoverage = useSheltrStore((s) => s.listingsCoverage);
+  const deck = useSheltrStore((s) => s.deck);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const zip = constraints?.zipCode ?? "90011";
@@ -135,7 +135,7 @@ export default function DiscoverPage() {
 
   return (
     <AppShell>
-      <DoorwayHeader subtitle={subtitle} />
+      <SheltrHeader subtitle={subtitle} />
       <RoleSwitcher compact />
 
       <div className="flex flex-1 flex-col px-5 pb-2">

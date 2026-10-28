@@ -33,17 +33,10 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname === "/api/demo/sync") {
-    if (request.method === "GET") return NextResponse.next();
-    if (request.method === "POST") {
-      const secret = process.env.DEMO_SYNC_SECRET;
-      if (secret) {
-        const header = request.headers.get("x-demo-sync-secret");
-        if (header !== secret) {
-          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-      }
-      return NextResponse.next();
-    }
+    // The route itself returns 404 unless demo bypass is enabled.
+    return DEMO_BYPASS
+      ? NextResponse.next()
+      : NextResponse.json({ error: "Demo sync is disabled" }, { status: 404 });
   }
 
   if (isPublicPath(pathname)) {

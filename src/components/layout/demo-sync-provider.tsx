@@ -1,15 +1,81 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import {
+  isAppwritePersistEnabled,
+  setAppwritePersistEnabled,
+  subscribeAppwritePersist,
+} from "@/lib/appwrite-client";
 import { buildSyncPayload, pullDemoSync, pushDemoSync } from "@/lib/demo-sync";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
+import type { UserSyncPayload } from "@/lib/types";
 
 const POLL_MS = 4000;
+const DEMO_BYPASS = process.env.NEXT_PUBLIC_ALLOW_DEMO_BYPASS === "true";
 
+/**
+ * Signed-in users poll their own records from Appwrite (/api/sync).
+ * Without a session, demo-bypass builds fall back to the shared demo room.
+ */
 export function DemoSyncProvider({ children }: { children: React.ReactNode }) {
+  const signedIn = useSyncExternalStore(
+    subscribeAppwritePersist,
+    isAppwritePersistEnabled,
+    () => false,
+  );
+  useUserSync(signedIn);
+  useSharedDemoSync(DEMO_BYPASS && !signedIn);
+  return children;
+}
+
+function useUserSync(enabled: boolean) {
+  const setSyncStatus = useSheltrStore((s) => s.setSyncStatus);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    let inFlight = false;
+
+    const run = async () => {
+      if (cancelled || inFlight || document.visibilityState === "hidden") return;
+      inFlight = true;
+      try {
+        const res = await fetch("/api/sync", { cache: "no-store" });
+        if (res.status === 401) {
+          setAppwritePersistEnabled(false);
+          return;
+        }
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as UserSyncPayload;
+        useSheltrStore.getState().applyServerSync(data);
+        setSyncStatus({
+          storage: "appwrite",
+          ready: true,
+          lastPulledAt: new Date().toISOString(),
+          syncing: false,
+        });
+      } catch {
+        // Offline: keep local state and retry on the next tick.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void run();
+    const interval = setInterval(run, POLL_MS);
+    document.addEventListener("visibilitychange", run);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", run);
+    };
+  }, [enabled, setSyncStatus]);
+}
+
+function useSharedDemoSync(enabled: boolean) {
   const pushing = useRef(false);
   const localRevision = useRef(0);
-  const setSyncStatus = useDoorwayStore((s) => s.setSyncStatus);
+  const setSyncStatus = useSheltrStore((s) => s.setSyncStatus);
 
   const pull = useCallback(async () => {
     if (pushing.current) return;
@@ -34,26 +100,27 @@ export function DemoSyncProvider({ children }: { children: React.ReactNode }) {
 
     if (!remote.state?.updatedAt) return;
 
-    const { lastSyncedAt, lastLocalRevision } = useDoorwayStore.getState();
+    const { lastSyncedAt, lastLocalRevision } = useSheltrStore.getState();
     const localUpdated = lastSyncedAt ?? "";
     if (
       remote.state.updatedAt > localUpdated &&
       remote.state.updatedAt &&
       (lastLocalRevision ?? 0) <= localRevision.current
     ) {
-      useDoorwayStore.getState().applyRemoteSync(remote.state);
+      useSheltrStore.getState().applyRemoteSync(remote.state);
     }
   }, [setSyncStatus]);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
 
     const runPull = async () => {
       if (cancelled) return;
       setSyncStatus({
-        storage: useDoorwayStore.getState().syncStatus?.storage ?? "memory",
-        ready: useDoorwayStore.getState().syncStatus?.ready ?? false,
-        lastPulledAt: useDoorwayStore.getState().syncStatus?.lastPulledAt ?? null,
+        storage: useSheltrStore.getState().syncStatus?.storage ?? "memory",
+        ready: useSheltrStore.getState().syncStatus?.ready ?? false,
+        lastPulledAt: useSheltrStore.getState().syncStatus?.lastPulledAt ?? null,
         syncing: true,
       });
       await pull();
@@ -65,10 +132,11 @@ export function DemoSyncProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [pull, setSyncStatus]);
+  }, [enabled, pull, setSyncStatus]);
 
   useEffect(() => {
-    const unsub = useDoorwayStore.subscribe((state, prev) => {
+    if (!enabled) return;
+    const unsub = useSheltrStore.subscribe((state, prev) => {
       if (pushing.current) return;
 
       const changed =
@@ -94,7 +162,7 @@ export function DemoSyncProvider({ children }: { children: React.ReactNode }) {
         notifications: state.notifications,
       });
 
-      useDoorwayStore.setState({
+      useSheltrStore.setState({
         lastSyncedAt: payload.updatedAt,
         lastLocalRevision: revision,
       });
@@ -110,16 +178,14 @@ export function DemoSyncProvider({ children }: { children: React.ReactNode }) {
         .finally(() => {
           pushing.current = false;
           setSyncStatus({
-            storage: useDoorwayStore.getState().syncStatus?.storage ?? "memory",
-            ready: useDoorwayStore.getState().syncStatus?.ready ?? false,
-            lastPulledAt: useDoorwayStore.getState().syncStatus?.lastPulledAt ?? null,
+            storage: useSheltrStore.getState().syncStatus?.storage ?? "memory",
+            ready: useSheltrStore.getState().syncStatus?.ready ?? false,
+            lastPulledAt: useSheltrStore.getState().syncStatus?.lastPulledAt ?? null,
             syncing: false,
           });
         });
     });
 
     return unsub;
-  }, [setSyncStatus]);
-
-  return children;
+  }, [enabled, setSyncStatus]);
 }

@@ -8,6 +8,7 @@ export const APPWRITE = {
     applications: "applications",
     conversations: "conversations",
     messages: "messages",
+    notifications: "notifications",
   },
 } as const;
 

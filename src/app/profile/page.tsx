@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
-import { DoorwayHeader } from "@/components/layout/doorway-header";
+import { SheltrHeader } from "@/components/layout/sheltr-header";
 import { Button } from "@/components/ui/button";
 import { displayName, initials, resolveSeeker } from "@/lib/current-user";
 import { signOutAccount, switchAccount } from "@/lib/auth-client";
 import { LOCALE_LABELS, t } from "@/lib/i18n";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import type { Locale } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
@@ -19,24 +19,24 @@ const ROLES: { role: "SEEKER" | "LANDLORD"; label: string; href: string }[] = [
 
 export default function ProfilePage() {
   const router = useRouter();
-  const currentUser = useDoorwayStore((s) => s.currentUser);
+  const currentUser = useSheltrStore((s) => s.currentUser);
   const seeker = resolveSeeker(currentUser);
-  const constraints = useDoorwayStore((s) => s.constraints);
-  const likedListings = useDoorwayStore((s) => s.likedListings);
-  const matches = useDoorwayStore((s) => s.matches);
-  const locale = useDoorwayStore((s) => s.locale);
-  const setLocale = useDoorwayStore((s) => s.setLocale);
-  const a11y = useDoorwayStore((s) => s.a11y);
-  const role = useDoorwayStore((s) => s.role);
-  const setDarkMode = useDoorwayStore((s) => s.setDarkMode);
-  const darkMode = useDoorwayStore((s) => s.darkMode);
-  const setA11y = useDoorwayStore((s) => s.setA11y);
-  const setRole = useDoorwayStore((s) => s.setRole);
-  const reset = useDoorwayStore((s) => s.reset);
+  const constraints = useSheltrStore((s) => s.constraints);
+  const likedListings = useSheltrStore((s) => s.likedListings);
+  const matches = useSheltrStore((s) => s.matches);
+  const locale = useSheltrStore((s) => s.locale);
+  const setLocale = useSheltrStore((s) => s.setLocale);
+  const a11y = useSheltrStore((s) => s.a11y);
+  const role = useSheltrStore((s) => s.role);
+  const setDarkMode = useSheltrStore((s) => s.setDarkMode);
+  const darkMode = useSheltrStore((s) => s.darkMode);
+  const setA11y = useSheltrStore((s) => s.setA11y);
+  const setRole = useSheltrStore((s) => s.setRole);
+  const reset = useSheltrStore((s) => s.reset);
 
   return (
     <AppShell>
-      <DoorwayHeader subtitle="You" />
+      <SheltrHeader subtitle="You" />
 
       <div className="px-5 pb-2">
         <div className="mb-6 flex items-center gap-4">

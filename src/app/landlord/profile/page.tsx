@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LandlordShell } from "@/components/layout/landlord-shell";
-import { DoorwayHeader } from "@/components/layout/doorway-header";
+import { SheltrHeader } from "@/components/layout/sheltr-header";
 import { Button } from "@/components/ui/button";
 import { displayName, initials, resolveLandlord } from "@/lib/current-user";
 import { signOutAccount, switchAccount } from "@/lib/auth-client";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 
 const ROLES = [
   { role: "SEEKER" as const, label: "Tenant view", href: "/discover" },
@@ -16,13 +16,13 @@ const ROLES = [
 
 export default function LandlordProfilePage() {
   const router = useRouter();
-  const currentUser = useDoorwayStore((s) => s.currentUser);
+  const currentUser = useSheltrStore((s) => s.currentUser);
   const landlord = resolveLandlord(currentUser);
-  const setRole = useDoorwayStore((s) => s.setRole);
+  const setRole = useSheltrStore((s) => s.setRole);
 
   return (
     <LandlordShell>
-      <DoorwayHeader subtitle="You" />
+      <SheltrHeader subtitle="You" />
 
       <div className="px-5 pb-2">
         <div className="mb-6 flex items-center gap-4">

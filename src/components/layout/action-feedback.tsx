@@ -1,13 +1,13 @@
 "use client";
 
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import { useEffect } from "react";
 
 const AUTO_DISMISS_MS = 4000;
 
 export function ActionFeedbackToast() {
-  const feedback = useDoorwayStore((s) => s.uiFeedback);
-  const clearUiFeedback = useDoorwayStore((s) => s.clearUiFeedback);
+  const feedback = useSheltrStore((s) => s.uiFeedback);
+  const clearUiFeedback = useSheltrStore((s) => s.clearUiFeedback);
 
   useEffect(() => {
     if (!feedback) return;

@@ -9,19 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { t } from "@/lib/i18n";
 import { resolveLandlord } from "@/lib/current-user";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 
 export default function LandlordApplicantsPage() {
-  const listings = useDoorwayStore((s) => s.listings);
-  const currentUser = useDoorwayStore((s) => s.currentUser);
+  const listings = useSheltrStore((s) => s.listings);
+  const currentUser = useSheltrStore((s) => s.currentUser);
   const landlord = resolveLandlord(currentUser);
-  const applications = useDoorwayStore((s) => s.applications);
-  const showings = useDoorwayStore((s) => s.showings);
-  const locale = useDoorwayStore((s) => s.locale);
-  const acceptShowing = useDoorwayStore((s) => s.acceptShowing);
-  const declineShowing = useDoorwayStore((s) => s.declineShowing);
-  const updateApplicationStatus = useDoorwayStore((s) => s.updateApplicationStatus);
-  const markLandlordApplicationsSeen = useDoorwayStore(
+  const applications = useSheltrStore((s) => s.applications);
+  const showings = useSheltrStore((s) => s.showings);
+  const locale = useSheltrStore((s) => s.locale);
+  const acceptShowing = useSheltrStore((s) => s.acceptShowing);
+  const declineShowing = useSheltrStore((s) => s.declineShowing);
+  const updateApplicationStatus = useSheltrStore((s) => s.updateApplicationStatus);
+  const markLandlordApplicationsSeen = useSheltrStore(
     (s) => s.markLandlordApplicationsSeen,
   );
   const [showingMessages, setShowingMessages] = useState<Record<string, string>>({});

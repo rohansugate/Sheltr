@@ -3,18 +3,45 @@ import type {
   ChatMessage,
   Conversation,
   Listing,
+  Notification,
   Showing,
 } from "./types";
 
-/** Best-effort push of domain objects to Appwrite (logged-in users). */
-export function persistToAppwrite(payload: {
+export interface PersistPayload {
   listing?: Listing;
   showing?: Showing;
   application?: Application;
   conversation?: Conversation;
   message?: ChatMessage;
-}) {
-  if (typeof window === "undefined") return;
+  notification?: Notification;
+  conversationRead?: { conversationId: string; readAt?: string };
+  notificationRead?: string;
+}
+
+let persistEnabled = false;
+const listeners = new Set<() => void>();
+
+/** Enabled once a real Appwrite session is confirmed; demo mode stays local. */
+export function setAppwritePersistEnabled(enabled: boolean) {
+  if (persistEnabled === enabled) return;
+  persistEnabled = enabled;
+  listeners.forEach((listener) => listener());
+}
+
+export function subscribeAppwritePersist(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function isAppwritePersistEnabled() {
+  return persistEnabled;
+}
+
+/** Best-effort push of domain changes to Appwrite (logged-in users). */
+export function persistToAppwrite(payload: PersistPayload) {
+  if (typeof window === "undefined" || !persistEnabled) return;
 
   if (payload.listing) {
     void fetch("/api/listings", {

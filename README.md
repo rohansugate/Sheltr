@@ -37,9 +37,13 @@ Sheltr brings both sides onto a single platform with a modern, swipe-based exper
 - **Messages** — Reply to tenants in threaded conversations tied to showings or applications.
 - **Unread badges** — See pending applications and unread messages at a glance.
 
-### Cross-device demo sync
+### Data and sync
 
-When deployed on Vercel with Upstash Redis, two phones can demo the full flow in real time: a tenant schedules a showing on one device, and the landlord sees it on another within seconds.
+Appwrite is the source of truth. Signed-in users write through `/api/persist`, which checks the session and record ownership on every change. Each device polls `/api/sync` for only that user's showings, applications, conversations, messages and notifications.
+
+### Demo mode
+
+With `ALLOW_DEMO_BYPASS` / `NEXT_PUBLIC_ALLOW_DEMO_BYPASS` set to `true`, the app runs without login and devices share one demo room through `/api/demo/sync` (Upstash Redis, or in-memory locally). That endpoint is disabled when demo bypass is off, so turn both flags off in production.
 
 ---
 
@@ -51,7 +55,7 @@ When deployed on Vercel with Upstash Redis, two phones can demo the full flow in
 | Styling | Tailwind CSS v4 |
 | Client state | Zustand + localStorage persistence |
 | Auth + data | Appwrite (Auth, Databases, Storage) |
-| Demo sync | Upstash Redis (optional; in-memory fallback locally) |
+| Demo room | Upstash Redis (demo-bypass mode only; in-memory fallback locally) |
 | Mobile | Capacitor (iOS) + Expo dev client shell |
 | Hosting | Vercel |
 

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { resolveLandlord, resolveSeeker } from "@/lib/current-user";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import {
   conversationForUser,
   countUnreadInConversation,
@@ -19,13 +19,13 @@ interface MessagesPanelProps {
 
 export function MessagesPanel({ role }: MessagesPanelProps) {
   const searchParams = useSearchParams();
-  const conversations = useDoorwayStore((s) => s.conversations);
-  const messages = useDoorwayStore((s) => s.messages);
-  const listings = useDoorwayStore((s) => s.listings);
-  const currentUser = useDoorwayStore((s) => s.currentUser);
-  const sendMessage = useDoorwayStore((s) => s.sendMessage);
-  const markConversationRead = useDoorwayStore((s) => s.markConversationRead);
-  const ensureMessagingReady = useDoorwayStore((s) => s.ensureMessagingReady);
+  const conversations = useSheltrStore((s) => s.conversations);
+  const messages = useSheltrStore((s) => s.messages);
+  const listings = useSheltrStore((s) => s.listings);
+  const currentUser = useSheltrStore((s) => s.currentUser);
+  const sendMessage = useSheltrStore((s) => s.sendMessage);
+  const markConversationRead = useSheltrStore((s) => s.markConversationRead);
+  const ensureMessagingReady = useSheltrStore((s) => s.ensureMessagingReady);
 
   const myId =
     role === "SEEKER"

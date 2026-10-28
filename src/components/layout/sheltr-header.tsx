@@ -1,11 +1,11 @@
 import { cn } from "@/lib/utils";
 
-interface DoorwayHeaderProps {
+interface SheltrHeaderProps {
   subtitle?: string;
   className?: string;
 }
 
-export function DoorwayHeader({ subtitle, className }: DoorwayHeaderProps) {
+export function SheltrHeader({ subtitle, className }: SheltrHeaderProps) {
   return (
     <header className={cn("flex flex-col items-center px-6 pt-8 pb-2 text-center", className)}>
       <h1 className="font-serif text-[2rem] leading-none tracking-tight">Sheltr</h1>

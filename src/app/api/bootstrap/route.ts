@@ -1,35 +1,34 @@
 import { NextResponse } from "next/server";
 import {
   listActiveListings,
-  listApplications,
-  listConversations,
-  listMessages,
-  listShowings,
+  listDomainForUser,
+  listListingsByLandlord,
   upsertListingDocument,
 } from "@/lib/appwrite/data";
-import { getSessionUser } from "@/lib/auth-server";
 import { mockListings } from "@/lib/mock-data";
+import { getSessionActor } from "@/lib/server/actor";
 import type { Listing } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+/** Public listings, plus the signed-in user's own records. */
 export async function GET() {
   try {
-    const [listings, showings, applications, conversations, messages] =
-      await Promise.all([
-        listActiveListings(100),
-        listShowings(),
-        listApplications(),
-        listConversations(),
-        listMessages(),
-      ]);
+    const actor = await getSessionActor();
+    const [active, own, domain] = await Promise.all([
+      listActiveListings(100),
+      actor?.role === "LANDLORD" ? listListingsByLandlord(actor.id) : Promise.resolve([]),
+      actor ? listDomainForUser(actor) : Promise.resolve(null),
+    ]);
+    const listings = [...own, ...active.filter((l) => !own.some((o) => o.id === l.id))];
 
     return NextResponse.json({
       listings,
-      showings,
-      applications,
-      conversations,
-      messages,
+      showings: domain?.showings ?? [],
+      applications: domain?.applications ?? [],
+      conversations: domain?.conversations ?? [],
+      messages: domain?.messages ?? [],
+      notifications: domain?.notifications ?? [],
       storage: "appwrite",
     });
   } catch (err) {
@@ -41,7 +40,6 @@ export async function GET() {
 /** Seed Appwrite with curated LA Section 8 listings if empty. */
 export async function POST() {
   try {
-    const user = await getSessionUser();
     const existing = await listActiveListings(5);
     if (existing.length > 0) {
       return NextResponse.json({
@@ -52,12 +50,11 @@ export async function POST() {
       });
     }
 
-    const landlordId = user?.id ?? "platform";
     let seeded = 0;
     for (const listing of mockListings.slice(0, 40)) {
       const payload: Listing = {
         ...listing,
-        landlordId: listing.landlordId ?? landlordId,
+        landlordId: listing.landlordId ?? "platform",
         source: listing.source === "MANUAL" ? "IMPORTED" : listing.source,
         status: "ACTIVE",
       };

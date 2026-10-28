@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { resolveSeeker } from "@/lib/current-user";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import {
   countUnreadMessages,
   countUnreadSeekerApplicationUpdates,
@@ -19,15 +19,15 @@ interface NavItem {
 
 export function BottomNav() {
   const pathname = usePathname();
-  const conversations = useDoorwayStore((s) => s.conversations);
-  const messages = useDoorwayStore((s) => s.messages);
-  const listings = useDoorwayStore((s) => s.listings);
-  const applications = useDoorwayStore((s) => s.applications);
-  const showings = useDoorwayStore((s) => s.showings);
-  const currentUser = useDoorwayStore((s) => s.currentUser);
-  const likedListings = useDoorwayStore((s) => s.likedListings);
-  const seenSeekerApplicationIds = useDoorwayStore((s) => s.seenSeekerApplicationIds);
-  const seenSeekerShowingIds = useDoorwayStore((s) => s.seenSeekerShowingIds);
+  const conversations = useSheltrStore((s) => s.conversations);
+  const messages = useSheltrStore((s) => s.messages);
+  const listings = useSheltrStore((s) => s.listings);
+  const applications = useSheltrStore((s) => s.applications);
+  const showings = useSheltrStore((s) => s.showings);
+  const currentUser = useSheltrStore((s) => s.currentUser);
+  const likedListings = useSheltrStore((s) => s.likedListings);
+  const seenSeekerApplicationIds = useSheltrStore((s) => s.seenSeekerApplicationIds);
+  const seenSeekerShowingIds = useSheltrStore((s) => s.seenSeekerShowingIds);
 
   const seekerId = resolveSeeker(currentUser).id;
 

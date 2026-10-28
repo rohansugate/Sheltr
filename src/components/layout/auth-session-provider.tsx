@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import { useDoorwayStore } from "@/lib/store";
+import { setAppwritePersistEnabled } from "@/lib/appwrite-client";
+import { useSheltrStore } from "@/lib/store";
 
 const DEMO_BYPASS = process.env.NEXT_PUBLIC_ALLOW_DEMO_BYPASS === "true";
 
 export function AuthSessionProvider({ children }: { children: React.ReactNode }) {
-  const loginUser = useDoorwayStore((s) => s.loginUser);
-  const logoutUser = useDoorwayStore((s) => s.logoutUser);
+  const loginUser = useSheltrStore((s) => s.loginUser);
+  const logoutUser = useSheltrStore((s) => s.logoutUser);
 
   useEffect(() => {
     let cancelled = false;
@@ -17,8 +18,9 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
         const res = await fetch("/api/auth/me");
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        const local = useDoorwayStore.getState().currentUser;
+        const local = useSheltrStore.getState().currentUser;
 
+        setAppwritePersistEnabled(Boolean(data.user));
         if (data.user) {
           if (!local || local.id !== data.user.id) {
             loginUser(data.user);

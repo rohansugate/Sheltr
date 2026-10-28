@@ -64,7 +64,7 @@ body {
   font-family: var(--font-serif), Georgia, "Times New Roman", serif;
 }
 
-.doorway-gradient {
+.sheltr-gradient {
   background:
     radial-gradient(ellipse 80% 50% at 0% 0%, var(--accent-mint) 0%, transparent 70%),
     var(--background);

@@ -7,6 +7,7 @@ import {
   Databases,
   Storage,
   Permission,
+  Query,
   Role,
   DatabasesIndexType,
 } from "node-appwrite";
@@ -135,16 +136,69 @@ async function createCollection(id, name) {
       databaseId: DB,
       collectionId: id,
       name,
-      permissions: [
-        Permission.read(Role.any()),
-        Permission.create(Role.users()),
-        Permission.update(Role.users()),
-        Permission.delete(Role.users()),
-      ],
+      // No collection-level grants: access comes only from per-document
+      // permissions, and all writes go through server routes with the API key.
+      permissions: [],
       documentSecurity: true,
       enabled: true,
     }),
   );
+  await ignoreExists(() =>
+    databases.updateCollection({
+      databaseId: DB,
+      collectionId: id,
+      name,
+      permissions: [],
+      documentSecurity: true,
+      enabled: true,
+    }),
+  );
+}
+
+async function listEvery(collectionId) {
+  const docs = [];
+  let cursor;
+  for (;;) {
+    const queries = [Query.limit(100)];
+    if (cursor) queries.push(Query.cursorAfter(cursor));
+    const page = await databases.listDocuments({ databaseId: DB, collectionId, queries });
+    docs.push(...page.documents);
+    if (page.documents.length < 100) return docs;
+    cursor = page.documents[page.documents.length - 1].$id;
+  }
+}
+
+function readOnly(...userIds) {
+  return [...new Set(userIds.filter(Boolean))].map((id) => Permission.read(Role.user(id)));
+}
+
+/** Older documents granted every signed-in user access; limit them to participants. */
+async function rewritePermissions() {
+  const owners = new Map(
+    (await listEvery("listings")).map((l) => [l.$id, l.landlordId]),
+  );
+  const participants = new Map();
+  for (const c of await listEvery("conversations")) {
+    participants.set(c.$id, [c.seekerId, c.landlordId]);
+  }
+  const plan = [
+    ["showings", (d) => readOnly(d.seekerId, owners.get(d.listingId))],
+    ["applications", (d) => readOnly(d.seekerId, owners.get(d.listingId))],
+    ["conversations", (d) => readOnly(d.seekerId, d.landlordId)],
+    ["messages", (d) => readOnly(...(participants.get(d.conversationId) ?? []))],
+  ];
+  for (const [collectionId, permissionsFor] of plan) {
+    const docs = await listEvery(collectionId);
+    for (const doc of docs) {
+      await databases.updateDocument({
+        databaseId: DB,
+        collectionId,
+        documentId: doc.$id,
+        permissions: permissionsFor(doc),
+      });
+    }
+    console.log(`  ${collectionId}: ${docs.length} updated`);
+  }
 }
 
 console.log("Creating database…");
@@ -158,6 +212,7 @@ await createCollection("showings", "Showings");
 await createCollection("applications", "Applications");
 await createCollection("conversations", "Conversations");
 await createCollection("messages", "Messages");
+await createCollection("notifications", "Notifications");
 
 console.log("Creating listing attributes…");
 await createString("listings", "landlordId", 64, true);
@@ -228,6 +283,8 @@ await createString("conversations", "landlordId", 64, true);
 await createString("conversations", "landlordName", 128, true);
 await createString("conversations", "applicationId", 64, false);
 await createString("conversations", "showingId", 64, false);
+await createString("conversations", "seekerLastReadAt", 64, false);
+await createString("conversations", "landlordLastReadAt", 64, false);
 
 console.log("Creating message attributes…");
 await createString("messages", "conversationId", 64, true);
@@ -235,6 +292,16 @@ await createString("messages", "senderId", 64, true);
 await createEnum("messages", "senderRole", ["SEEKER", "LANDLORD"], true);
 await createString("messages", "text", 4000, true);
 await createString("messages", "sentAt", 64, true);
+
+console.log("Creating notification attributes…");
+await createString("notifications", "recipientId", 64, true);
+await createEnum("notifications", "recipientRole", ["SEEKER", "LANDLORD"], true);
+await createString("notifications", "title", 256, true);
+await createString("notifications", "message", 1024, true);
+await createString("notifications", "conversationId", 64, false);
+await createString("notifications", "fromName", 128, false);
+await createBool("notifications", "read", false, false);
+await createString("notifications", "createdAt", 64, true);
 
 console.log("Waiting for attributes to become available…");
 await wait(2000);
@@ -250,18 +317,19 @@ await createKeyIndex("applications", "seekerId_idx", ["seekerId"]);
 await createKeyIndex("conversations", "seekerId_idx", ["seekerId"]);
 await createKeyIndex("conversations", "landlordId_idx", ["landlordId"]);
 await createKeyIndex("messages", "conversationId_idx", ["conversationId"]);
+await createKeyIndex("notifications", "recipientId_idx", ["recipientId"]);
+
+console.log("Locking down existing documents…");
+await rewritePermissions();
 
 console.log("Creating storage bucket…");
+// Uploads go through /api/uploads with the API key; clients only read.
+const bucketPermissions = [Permission.read(Role.any())];
 await ignoreExists(() =>
   storage.createBucket({
     bucketId: BUCKET,
     name: "Listing images",
-    permissions: [
-      Permission.read(Role.any()),
-      Permission.create(Role.users()),
-      Permission.update(Role.users()),
-      Permission.delete(Role.users()),
-    ],
+    permissions: bucketPermissions,
     fileSecurity: true,
     enabled: true,
     maximumFileSize: 10 * 1024 * 1024,
@@ -271,5 +339,13 @@ await ignoreExists(() =>
     antivirus: false,
   }),
 );
+
+await storage.updateBucket({
+  bucketId: BUCKET,
+  name: "Listing images",
+  permissions: bucketPermissions,
+  fileSecurity: true,
+  enabled: true,
+});
 
 console.log("Done. Database:", DB, "Bucket:", BUCKET);

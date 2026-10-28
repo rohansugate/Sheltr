@@ -4,19 +4,19 @@ import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ListingCard } from "@/components/discover/listing-card";
 import { t } from "@/lib/i18n";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import type { Listing } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const SWIPE_THRESHOLD = 80;
 
 export function SwipeDeck() {
-  const deck = useDoorwayStore((s) => s.deck);
-  const swipe = useDoorwayStore((s) => s.swipe);
-  const undoSwipe = useDoorwayStore((s) => s.undoSwipe);
-  const swipeHistory = useDoorwayStore((s) => s.swipeHistory);
-  const locale = useDoorwayStore((s) => s.locale);
-  const a11y = useDoorwayStore((s) => s.a11y);
+  const deck = useSheltrStore((s) => s.deck);
+  const swipe = useSheltrStore((s) => s.swipe);
+  const undoSwipe = useSheltrStore((s) => s.undoSwipe);
+  const swipeHistory = useSheltrStore((s) => s.swipeHistory);
+  const locale = useSheltrStore((s) => s.locale);
+  const a11y = useSheltrStore((s) => s.a11y);
   const [exiting, setExiting] = useState<{
     id: string;
     direction: "left" | "right";
