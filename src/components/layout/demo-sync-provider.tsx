@@ -100,13 +100,11 @@ function useSharedDemoSync(enabled: boolean) {
 
     if (!remote.state?.updatedAt) return;
 
-    const { lastSyncedAt, lastLocalRevision } = useSheltrStore.getState();
-    const localUpdated = lastSyncedAt ?? "";
-    if (
-      remote.state.updatedAt > localUpdated &&
-      remote.state.updatedAt &&
-      (lastLocalRevision ?? 0) <= localRevision.current
-    ) {
+    // Pulls merge with local state, and pulls are skipped while a push is in flight.
+    // lastLocalRevision is not compared: it is persisted, so another tab or a reload
+    // would load a revision this tab's counter never reaches and block every pull.
+    const localUpdated = useSheltrStore.getState().lastSyncedAt ?? "";
+    if (remote.state.updatedAt > localUpdated) {
       useSheltrStore.getState().applyRemoteSync(remote.state);
     }
   }, [setSyncStatus]);

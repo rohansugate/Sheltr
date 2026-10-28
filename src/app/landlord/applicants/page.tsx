@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { t } from "@/lib/i18n";
 import { resolveLandlord } from "@/lib/current-user";
 import { useSheltrStore } from "@/lib/store";
+import { findConversationId } from "@/lib/unread-counts";
 
 export default function LandlordApplicantsPage() {
   const listings = useSheltrStore((s) => s.listings);
@@ -17,6 +18,7 @@ export default function LandlordApplicantsPage() {
   const landlord = resolveLandlord(currentUser);
   const applications = useSheltrStore((s) => s.applications);
   const showings = useSheltrStore((s) => s.showings);
+  const conversations = useSheltrStore((s) => s.conversations);
   const locale = useSheltrStore((s) => s.locale);
   const acceptShowing = useSheltrStore((s) => s.acceptShowing);
   const declineShowing = useSheltrStore((s) => s.declineShowing);
@@ -64,7 +66,7 @@ export default function LandlordApplicantsPage() {
                       {s.status}
                     </Badge>
                     {s.status === "ACCEPTED" && (
-                      <Link href={`/landlord/messages?conversationId=convo-showing-${s.id}`} className="mt-3 inline-block">
+                      <Link href={`/landlord/messages?conversationId=${findConversationId(conversations, { showingId: s.id }) ?? `convo-showing-${s.id}`}`} className="mt-3 inline-block">
                         <Button variant="outline" size="sm">Message tenant</Button>
                       </Link>
                     )}
@@ -143,7 +145,7 @@ export default function LandlordApplicantsPage() {
                       )}
                       {app.status === "ACCEPTED" && (
                         <>
-                          <Link href={`/landlord/messages?conversationId=convo-${app.id}`}>
+                          <Link href={`/landlord/messages?conversationId=${findConversationId(conversations, { applicationId: app.id, showingId: app.showingId }) ?? `convo-${app.id}`}`}>
                             <Button variant="outline" size="sm">Message tenant</Button>
                           </Link>
                           <Button variant="primary" size="sm" onClick={() => updateApplicationStatus(app.id, "LEASE_SIGNED")}>Lease signed</Button>

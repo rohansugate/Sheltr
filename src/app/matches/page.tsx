@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { ListingImage } from "@/components/ui/listing-image";
 import { t } from "@/lib/i18n";
 import { useSheltrStore } from "@/lib/store";
+import { findConversationId } from "@/lib/unread-counts";
 import type { Listing } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
@@ -28,6 +29,7 @@ export default function MatchesPage() {
   const canApply = useSheltrStore((s) => s.canApply);
   const getShowingForListing = useSheltrStore((s) => s.getShowingForListing);
   const applications = useSheltrStore((s) => s.applications);
+  const conversations = useSheltrStore((s) => s.conversations);
   const constraints = useSheltrStore((s) => s.constraints);
   const markSeekerApplicationUpdatesSeen = useSheltrStore(
     (s) => s.markSeekerApplicationUpdatesSeen,
@@ -45,7 +47,10 @@ export default function MatchesPage() {
   const getMessageHref = (listingId: string) => {
     const app = applications.find((a) => a.listingId === listingId);
     if (app && ["ACCEPTED", "LEASE_SIGNED"].includes(app.status)) {
-      return `/messages?conversationId=convo-${app.id}`;
+      const id =
+        findConversationId(conversations, { applicationId: app.id, showingId: app.showingId }) ??
+        `convo-${app.id}`;
+      return `/messages?conversationId=${id}`;
     }
     const showing = getShowingForListing(listingId);
     if (showing?.status === "ACCEPTED") {
