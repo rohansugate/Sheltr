@@ -131,6 +131,15 @@ export interface Showing {
   updatedAt?: string;
 }
 
+/** The signed-in user's own records, as returned by /api/sync. */
+export interface UserSyncPayload {
+  showings: Showing[];
+  applications: Application[];
+  conversations: Conversation[];
+  messages: ChatMessage[];
+  notifications: Notification[];
+}
+
 export interface Notification {
   id: string;
   title: string;

@@ -8,7 +8,7 @@ import { ListingImage } from "@/components/ui/listing-image";
 import { compressImageFile } from "@/lib/image-utils";
 import { persistToAppwrite, uploadListingPhoto } from "@/lib/appwrite-client";
 import { CA_TRANSIT_OPTIONS, neighborhoodsForZip } from "@/lib/neighborhoods";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import type { Listing, ListingInput } from "@/lib/types";
 
 const DEFAULT_FORM: ListingInput = {
@@ -53,10 +53,10 @@ export function ListingForm({
   initialStatus,
 }: ListingFormProps) {
   const router = useRouter();
-  const listings = useDoorwayStore((s) => s.listings);
-  const saveListing = useDoorwayStore((s) => s.saveListing);
-  const updateListing = useDoorwayStore((s) => s.updateListing);
-  const publishListing = useDoorwayStore((s) => s.publishListing);
+  const listings = useSheltrStore((s) => s.listings);
+  const saveListing = useSheltrStore((s) => s.saveListing);
+  const updateListing = useSheltrStore((s) => s.updateListing);
+  const publishListing = useSheltrStore((s) => s.publishListing);
 
   const existing = listingId
     ? listings.find((l) => l.id === listingId)
@@ -140,7 +140,7 @@ export function ListingForm({
       if (!asDraft && existing?.status === "DRAFT") {
         publishListing(listingId);
       }
-      const saved = useDoorwayStore
+      const saved = useSheltrStore
         .getState()
         .listings.find((l) => l.id === listingId);
       if (saved) persistToAppwrite({ listing: saved });

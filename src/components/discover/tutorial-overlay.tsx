@@ -2,13 +2,12 @@
 
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
-import { useDoorwayStore } from "@/lib/store";
-import type { Locale } from "@/lib/types";
+import { useSheltrStore } from "@/lib/store";
 
 export function TutorialOverlay() {
-  const locale = useDoorwayStore((s) => s.locale);
-  const tutorialSeen = useDoorwayStore((s) => s.tutorialSeen);
-  const dismissTutorial = useDoorwayStore((s) => s.dismissTutorial);
+  const locale = useSheltrStore((s) => s.locale);
+  const tutorialSeen = useSheltrStore((s) => s.tutorialSeen);
+  const dismissTutorial = useSheltrStore((s) => s.dismissTutorial);
 
   if (tutorialSeen) return null;
 

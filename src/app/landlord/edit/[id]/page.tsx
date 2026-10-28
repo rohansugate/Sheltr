@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { ListingForm } from "@/components/landlord/listing-form";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 
 export default function EditListingPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const listing = useDoorwayStore((s) => s.listings.find((l) => l.id === id));
+  const listing = useSheltrStore((s) => s.listings.find((l) => l.id === id));
 
   useEffect(() => {
     if (!listing) router.replace("/landlord");

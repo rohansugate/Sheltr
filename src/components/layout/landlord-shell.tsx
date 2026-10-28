@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { resolveLandlord } from "@/lib/current-user";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import {
   countUnreadLandlordApplications,
   countUnreadMessages,
@@ -52,16 +52,16 @@ const landlordNav = [
 
 export function LandlordShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const conversations = useDoorwayStore((s) => s.conversations);
-  const messages = useDoorwayStore((s) => s.messages);
-  const listings = useDoorwayStore((s) => s.listings);
-  const currentUser = useDoorwayStore((s) => s.currentUser);
-  const applications = useDoorwayStore((s) => s.applications);
-  const showings = useDoorwayStore((s) => s.showings);
-  const seenLandlordApplicationIds = useDoorwayStore(
+  const conversations = useSheltrStore((s) => s.conversations);
+  const messages = useSheltrStore((s) => s.messages);
+  const listings = useSheltrStore((s) => s.listings);
+  const currentUser = useSheltrStore((s) => s.currentUser);
+  const applications = useSheltrStore((s) => s.applications);
+  const showings = useSheltrStore((s) => s.showings);
+  const seenLandlordApplicationIds = useSheltrStore(
     (s) => s.seenLandlordApplicationIds,
   );
-  const seenLandlordShowingIds = useDoorwayStore((s) => s.seenLandlordShowingIds);
+  const seenLandlordShowingIds = useSheltrStore((s) => s.seenLandlordShowingIds);
 
   const landlord = resolveLandlord(currentUser);
   const landlordListingIds = getLandlordListingIds(landlord.id, listings);

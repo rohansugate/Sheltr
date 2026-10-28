@@ -25,11 +25,11 @@ import type {
   User,
   UserRole,
   LandlordSession,
+  UserSyncPayload,
 } from "./types";
 import { persistToAppwrite } from "./appwrite-client";
 import {
   DEFAULT_IMAGE,
-  mockLandlord,
   mockListings,
   mockSeeker,
   zipToCoords,
@@ -61,7 +61,7 @@ import {
   markLandlordApplicationNotificationsRead,
 } from "./unread-counts";
 
-interface DoorwayState {
+interface SheltrState {
   currentUser: User | null;
   role: UserRole | null;
   locale: Locale;
@@ -142,6 +142,7 @@ interface DoorwayState {
   markSeekerApplicationUpdatesSeen: () => void;
   ensureMessagingReady: () => void;
   applyRemoteSync: (payload: DemoSyncPayload) => void;
+  applyServerSync: (payload: UserSyncPayload) => void;
   markNotificationRead: (id: string) => void;
   saveListing: (input: ListingInput, status: "DRAFT" | "ACTIVE") => Listing | null;
   updateListing: (id: string, input: ListingInput) => boolean;
@@ -174,7 +175,7 @@ function snapshotTenantSession(state: {
 }
 
 function freshTenantState(): Pick<
-  DoorwayState,
+  SheltrState,
   | "onboardingComplete"
   | "constraints"
   | "likedListingIds"
@@ -209,7 +210,7 @@ function snapshotLandlordSession(state: {
 }
 
 function freshLandlordSeenState(): Pick<
-  DoorwayState,
+  SheltrState,
   "seenLandlordApplicationIds" | "seenLandlordShowingIds"
 > {
   return {
@@ -222,7 +223,7 @@ function applyTenantSession(
   session: TenantSession,
   listings: Listing[],
 ): Pick<
-  DoorwayState,
+  SheltrState,
   | "onboardingComplete"
   | "constraints"
   | "likedListingIds"
@@ -265,8 +266,8 @@ function applyTenantSession(
 }
 
 function applyListingsUpdate(
-  get: () => DoorwayState,
-  set: (partial: Partial<DoorwayState>) => void,
+  get: () => SheltrState,
+  set: (partial: Partial<SheltrState>) => void,
   updatedListings: Listing[],
 ) {
   applyListingsUpdateSlice(
@@ -337,6 +338,53 @@ function pushNotification(
   return [n, ...notifications];
 }
 
+/** Deterministic and short enough for an Appwrite document id (max 36 chars). */
+function welcomeMessageId(conversationId: string) {
+  let hash = 5381;
+  for (let i = 0; i < conversationId.length; i++) {
+    hash = ((hash * 33) ^ conversationId.charCodeAt(i)) >>> 0;
+  }
+  return `msg-welcome-${hash.toString(36)}`;
+}
+
+function hasWelcomeMessage(messages: ChatMessage[], welcome: ChatMessage) {
+  const legacyId = `msg-welcome-${welcome.conversationId}`;
+  return messages.some((m) => m.id === welcome.id || m.id === legacyId);
+}
+
+/** Local changes this recent win over the server while their save is in flight. */
+const PENDING_GRACE_MS = 30_000;
+
+function timestamp(value?: string) {
+  return value ? Date.parse(value) || 0 : 0;
+}
+
+function preferServer<T extends { id: string }>(
+  server: T[],
+  local: T[],
+  changedAt: (item: T) => string | undefined,
+): T[] {
+  const cutoff = Date.now() - PENDING_GRACE_MS;
+  const isPending = (item: T) => timestamp(changedAt(item)) > cutoff;
+  const localById = new Map(local.map((item) => [item.id, item]));
+  const serverIds = new Set(server.map((item) => item.id));
+  const merged = server.map((item) => {
+    const mine = localById.get(item.id);
+    return mine &&
+      isPending(mine) &&
+      timestamp(changedAt(mine)) > timestamp(changedAt(item))
+      ? mine
+      : item;
+  });
+  return [...merged, ...local.filter((item) => !serverIds.has(item.id) && isPending(item))];
+}
+
+function laterOf(a?: string, b?: string) {
+  if (!a) return b;
+  if (!b) return a;
+  return a > b ? a : b;
+}
+
 function buildWelcomeMessage(
   conversationId: string,
   landlord: { id: string; name: string },
@@ -350,7 +398,7 @@ function buildWelcomeMessage(
       : `Hi ${seekerFirstName}, your application for ${listingTitle} was accepted. Feel free to message me here if you have questions.`;
 
   return {
-    id: `msg-welcome-${conversationId}`,
+    id: welcomeMessageId(conversationId),
     conversationId,
     senderId: landlord.id,
     senderRole: "LANDLORD",
@@ -470,7 +518,7 @@ function openConversationForApplication(
   return { conversations: [...conversations, conversation], conversation };
 }
 
-export const useDoorwayStore = create<DoorwayState>()(
+export const useSheltrStore = create<SheltrState>()(
   persist(
     (set, get) => ({
       currentUser: null,
@@ -837,7 +885,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             },
           ),
         });
-        persistToAppwrite({ application: app });
+        persistToAppwrite({ application: app, notification: get().notifications[0] });
         return true;
       },
 
@@ -887,7 +935,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             },
           ),
         });
-        persistToAppwrite({ showing });
+        persistToAppwrite({ showing, notification: get().notifications[0] });
       },
 
       acceptShowing: (id, message) => {
@@ -918,7 +966,7 @@ export const useDoorwayStore = create<DoorwayState>()(
           listing?.title ?? "the unit",
           "showing",
         );
-        const hasWelcome = get().messages.some((m) => m.id === welcome.id);
+        const hasWelcome = hasWelcomeMessage(get().messages, welcome);
 
         set({
           showings: get().showings.map((s) => (s.id === id ? accepted : s)),
@@ -936,6 +984,12 @@ export const useDoorwayStore = create<DoorwayState>()(
               fromName: landlord.name,
             },
           ),
+        });
+        persistToAppwrite({
+          showing: accepted,
+          conversation: opened.conversation,
+          message: hasWelcome ? undefined : welcome,
+          notification: get().notifications[0],
         });
       },
 
@@ -963,6 +1017,10 @@ export const useDoorwayStore = create<DoorwayState>()(
             },
           ),
         });
+        const declined = get().showings.find((s) => s.id === id);
+        if (declined) {
+          persistToAppwrite({ showing: declined, notification: get().notifications[0] });
+        }
       },
 
       clearConfirmedShowing: () => set({ lastConfirmedShowing: null }),
@@ -996,7 +1054,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             listing?.title ?? "the unit",
             "application",
           );
-          if (!messages.some((m) => m.id === welcome.id)) {
+          if (!hasWelcomeMessage(messages, welcome)) {
             messages = [...messages, welcome];
           }
         }
@@ -1031,6 +1089,16 @@ export const useDoorwayStore = create<DoorwayState>()(
               fromName: resolveLandlordForListing(listing, currentUser).name,
             },
           ),
+        });
+        persistToAppwrite({
+          application: get().applications.find((a) => a.id === id),
+          conversation: conversationId
+            ? conversations.find((c) => c.id === conversationId)
+            : undefined,
+          message: conversationId
+            ? messages.find((m) => m.id === welcomeMessageId(conversationId))
+            : undefined,
+          notification: get().notifications[0],
         });
       },
 
@@ -1076,7 +1144,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             recipientOptions,
           ),
         });
-        persistToAppwrite({ message: msg });
+        persistToAppwrite({ message: msg, notification: get().notifications[0] });
       },
 
       ensureMessagingReady: () => {
@@ -1107,7 +1175,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             listing?.title ?? "the unit",
             "showing",
           );
-          if (!nextMessages.some((m) => m.id === welcome.id)) {
+          if (!hasWelcomeMessage(nextMessages, welcome)) {
             nextMessages = [...nextMessages, welcome];
           }
         }
@@ -1132,7 +1200,7 @@ export const useDoorwayStore = create<DoorwayState>()(
             listing?.title ?? "the unit",
             "application",
           );
-          if (!nextMessages.some((m) => m.id === welcome.id)) {
+          if (!hasWelcomeMessage(nextMessages, welcome)) {
             nextMessages = [...nextMessages, welcome];
           }
         }
@@ -1156,7 +1224,25 @@ export const useDoorwayStore = create<DoorwayState>()(
           .filter((m) => m.conversationId === conversationId)
           .sort((a, b) => b.sentAt.localeCompare(a.sentAt));
         const latestIncoming = thread.find((m) => m.senderRole !== role)?.sentAt;
-        const readAt = latestIncoming ?? new Date().toISOString();
+        const convo = conversations.find((c) => c.id === conversationId);
+        const previous =
+          role === "SEEKER" ? convo?.seekerLastReadAt : convo?.landlordLastReadAt;
+        const readAt = latestIncoming ?? previous ?? new Date().toISOString();
+        const nextNotifications = markConversationNotificationsRead(
+          notifications,
+          conversationId,
+          role,
+          myId,
+        );
+        const advanced = !previous || previous < readAt;
+        const notificationsChanged = nextNotifications.some(
+          (n, i) => n.read !== notifications[i]?.read,
+        );
+        // No-op when nothing changed; otherwise effects keyed on conversations loop.
+        if (!advanced && !notificationsChanged) return;
+        if (convo && advanced) {
+          persistToAppwrite({ conversationRead: { conversationId, readAt } });
+        }
 
         set({
           conversations: conversations.map((c) =>
@@ -1170,12 +1256,7 @@ export const useDoorwayStore = create<DoorwayState>()(
                 }
               : c,
           ),
-          notifications: markConversationNotificationsRead(
-            notifications,
-            conversationId,
-            role,
-            myId,
-          ),
+          notifications: notificationsChanged ? nextNotifications : notifications,
         });
       },
 
@@ -1277,7 +1358,51 @@ export const useDoorwayStore = create<DoorwayState>()(
         });
       },
 
+      applyServerSync: (payload) => {
+        const local = get();
+        const localConvos = new Map(local.conversations.map((c) => [c.id, c]));
+        const localRead = new Set(
+          local.notifications.filter((n) => n.read).map((n) => n.id),
+        );
+        set({
+          showings: preferServer(
+            payload.showings,
+            local.showings,
+            (s) => s.updatedAt ?? s.createdAt,
+          ),
+          applications: preferServer(
+            payload.applications,
+            local.applications,
+            (a) => a.updatedAt ?? a.sentAt,
+          ),
+          conversations: preferServer(
+            payload.conversations,
+            local.conversations,
+            (c) => c.createdAt,
+          ).map((c) => {
+            const mine = localConvos.get(c.id);
+            return mine
+              ? {
+                  ...c,
+                  seekerLastReadAt: laterOf(c.seekerLastReadAt, mine.seekerLastReadAt),
+                  landlordLastReadAt: laterOf(c.landlordLastReadAt, mine.landlordLastReadAt),
+                }
+              : c;
+          }),
+          messages: preferServer(payload.messages, local.messages, (m) => m.sentAt).sort(
+            (a, b) => a.sentAt.localeCompare(b.sentAt),
+          ),
+          notifications: payload.notifications.map((n) =>
+            localRead.has(n.id) ? { ...n, read: true } : n,
+          ),
+          lastSyncedAt: new Date().toISOString(),
+        });
+      },
+
       markNotificationRead: (id) => {
+        if (get().notifications.some((n) => n.id === id && !n.read)) {
+          persistToAppwrite({ notificationRead: id });
+        }
         set({
           notifications: get().notifications.map((n) =>
             n.id === id ? { ...n, read: true } : n,
@@ -1387,8 +1512,8 @@ export const useDoorwayStore = create<DoorwayState>()(
     {
       name: "doorway-store",
       version: 13,
-      migrate: (persisted, version) => {
-        const state = persisted as Partial<DoorwayState> & {
+      migrate: (persisted) => {
+        const state = persisted as Partial<SheltrState> & {
           likedListings?: Listing[];
         };
         const existing = (state.listings ?? []).map((l) => {

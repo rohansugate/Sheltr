@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { displayName, resolveLandlord } from "@/lib/current-user";
 import { switchAccount } from "@/lib/auth-client";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import type { UserRole } from "@/lib/types";
 
 const ROLE_CONFIG: Record<
@@ -45,9 +45,9 @@ function targetHref(pathname: string, nextRole: "SEEKER" | "LANDLORD"): string {
 export function RoleSwitcher({ compact }: { compact?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
-  const role = useDoorwayStore((s) => s.role);
-  const currentUser = useDoorwayStore((s) => s.currentUser);
-  const setRole = useDoorwayStore((s) => s.setRole);
+  const role = useSheltrStore((s) => s.role);
+  const currentUser = useSheltrStore((s) => s.currentUser);
+  const setRole = useSheltrStore((s) => s.setRole);
 
   if (currentUser) {
     const otherRole = role === "SEEKER" ? "LANDLORD" : "SEEKER";

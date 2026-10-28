@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import type { DemoSyncPayload } from "@/lib/types";
 
-/** Load Sheltr domain data from Appwrite and seed curated listings once. */
+/** Load public listings from Appwrite once. Per-user records come from SyncProvider. */
 export function AppwriteBootstrapProvider({
   children,
 }: {
@@ -26,23 +26,17 @@ export function AppwriteBootstrapProvider({
 
         const payload: DemoSyncPayload = {
           listings: data.listings ?? [],
-          applications: data.applications ?? [],
-          showings: data.showings ?? [],
-          conversations: data.conversations ?? [],
-          messages: data.messages ?? [],
-          notifications: useDoorwayStore.getState().notifications,
+          applications: [],
+          showings: [],
+          conversations: [],
+          messages: [],
+          notifications: [],
           updatedAt: new Date().toISOString(),
         };
 
-        // Prefer Appwrite rows when present; keep local seed if empty response.
-        if (payload.listings.length > 0 || payload.applications.length > 0) {
-          useDoorwayStore.getState().applyRemoteSync(payload);
-          useDoorwayStore.getState().setSyncStatus({
-            storage: "redis",
-            ready: true,
-            lastPulledAt: new Date().toISOString(),
-            syncing: false,
-          });
+        // Keep the local seed if Appwrite has no listings yet.
+        if (payload.listings.length > 0) {
+          useSheltrStore.getState().applyRemoteSync(payload);
         }
       } catch {
         // Demo mode still works offline

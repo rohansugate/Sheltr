@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { DoorwayHeader } from "@/components/layout/doorway-header";
+import { SheltrHeader } from "@/components/layout/sheltr-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { homePathForUser } from "@/lib/auth-routing";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import type { User } from "@/lib/types";
 
 type AuthMode = "signup" | "login";
@@ -45,9 +45,9 @@ export default function AuthPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isSwitching = searchParams.get("switch") === "1";
-  const currentUser = useDoorwayStore((s) => s.currentUser);
-  const onboardingComplete = useDoorwayStore((s) => s.onboardingComplete);
-  const loginUser = useDoorwayStore((s) => s.loginUser);
+  const currentUser = useSheltrStore((s) => s.currentUser);
+  const onboardingComplete = useSheltrStore((s) => s.onboardingComplete);
+  const loginUser = useSheltrStore((s) => s.loginUser);
 
   const [mode, setMode] = useState<AuthMode>(() => {
     const m = searchParams.get("mode");
@@ -67,15 +67,18 @@ export default function AuthPage() {
   const [checking, setChecking] = useState(false);
   const [verifiedAccount, setVerifiedAccount] = useState<VerifiedAccount | null>(null);
 
-  useEffect(() => {
+  const paramsKey = searchParams.toString();
+  const [syncedParamsKey, setSyncedParamsKey] = useState(paramsKey);
+  if (paramsKey !== syncedParamsKey) {
+    setSyncedParamsKey(paramsKey);
     const role = searchParams.get("role");
     if (role === "LANDLORD" || role === "SEEKER") {
       setSignupRole(role);
     }
     const m = searchParams.get("mode");
     if (m === "login" || m === "signup") setMode(m);
-    else if (searchParams.get("switch") === "1") setMode("login");
-  }, [searchParams]);
+    else if (isSwitching) setMode("login");
+  }
 
   useEffect(() => {
     if (!currentUser || isSwitching) return;
@@ -83,7 +86,7 @@ export default function AuthPage() {
   }, [currentUser, onboardingComplete, router, isSwitching]);
 
   const redirectAfterAuth = (user: User) => {
-    router.push(homePathForUser(user, useDoorwayStore.getState().onboardingComplete));
+    router.push(homePathForUser(user, useSheltrStore.getState().onboardingComplete));
   };
 
   const resetVerification = () => {
@@ -179,8 +182,8 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="app-shell doorway-gradient flex min-h-dvh flex-col">
-      <DoorwayHeader
+    <div className="app-shell sheltr-gradient flex min-h-dvh flex-col">
+      <SheltrHeader
         subtitle={isSwitching ? "Switch account" : "Your account"}
         className="pt-12"
       />
@@ -193,7 +196,7 @@ export default function AuthPage() {
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
           Accounts are verified against Sheltr&apos;s database. Passwords are
-          stored securely by Supabase when you sign up.
+          stored securely by Appwrite when you sign up.
         </p>
       </div>
 

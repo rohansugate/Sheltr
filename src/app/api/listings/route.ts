@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  getListingOwnerId,
   listActiveListings,
   listListingsByLandlord,
   upsertListingDocument,
@@ -13,9 +14,13 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const landlordId = searchParams.get("landlordId");
-    const listings = landlordId
-      ? await listListingsByLandlord(landlordId)
-      : await listActiveListings(100);
+    if (!landlordId) {
+      return NextResponse.json({ listings: await listActiveListings(100) });
+    }
+    const user = await getSessionUser();
+    const all = await listListingsByLandlord(landlordId);
+    const listings =
+      user?.id === landlordId ? all : all.filter((l) => l.status === "ACTIVE");
     return NextResponse.json({ listings });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to load listings";
@@ -36,6 +41,11 @@ export async function POST(request: Request) {
     const body = (await request.json()) as { listing?: Listing };
     if (!body.listing) {
       return NextResponse.json({ error: "Missing listing" }, { status: 400 });
+    }
+
+    const ownerId = body.listing.id ? await getListingOwnerId(body.listing.id) : null;
+    if (ownerId && ownerId !== user.id) {
+      return NextResponse.json({ error: "Not your listing" }, { status: 403 });
     }
 
     const listing: Listing = {

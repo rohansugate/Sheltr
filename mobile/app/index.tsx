@@ -101,8 +101,8 @@ export default function HomeScreen() {
       ) : null}
 
       <Text style={styles.footer}>
-        Mac: cd doorway && npm run dev -- --hostname 0.0.0.0{"\n"}
-        Use your Mac's IP, port 3000
+        Mac: cd Sheltr && npm run dev -- --hostname 0.0.0.0{"\n"}
+        Use your Mac&apos;s IP, port 3000
       </Text>
     </KeyboardAvoidingView>
   );

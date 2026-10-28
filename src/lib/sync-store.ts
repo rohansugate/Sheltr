@@ -1,10 +1,11 @@
 import type { DemoSyncPayload } from "./types";
 import { mergeDemoPayload, sanitizeDemoPayload } from "./sync-merge";
 
-export const DEMO_SYNC_KEY = process.env.DOORWAY_DEMO_ROOM ?? "doorway-hackathon";
+export const DEMO_SYNC_KEY =
+  process.env.SHELTR_DEMO_ROOM ?? process.env.DOORWAY_DEMO_ROOM ?? "doorway-hackathon";
 
 const globalStore = globalThis as typeof globalThis & {
-  __doorwayDemoSync?: DemoSyncPayload | null;
+  __sheltrDemoSync?: DemoSyncPayload | null;
 };
 
 function hasRedisEnv() {
@@ -14,11 +15,11 @@ function hasRedisEnv() {
 }
 
 function memoryGet(): DemoSyncPayload | null {
-  return globalStore.__doorwayDemoSync ?? null;
+  return globalStore.__sheltrDemoSync ?? null;
 }
 
 function memorySet(state: DemoSyncPayload) {
-  globalStore.__doorwayDemoSync = state;
+  globalStore.__sheltrDemoSync = state;
 }
 
 async function redisGet(): Promise<DemoSyncPayload | null> {

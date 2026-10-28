@@ -1,16 +1,16 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { t, type TranslationKey } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 import { neighborhoodsForZip } from "@/lib/neighborhoods";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 
 export function DiscoverFilters() {
-  const locale = useDoorwayStore((s) => s.locale);
-  const filters = useDoorwayStore((s) => s.discoverFilters);
-  const constraints = useDoorwayStore((s) => s.constraints);
-  const listings = useDoorwayStore((s) => s.listings);
-  const setDiscoverFilters = useDoorwayStore((s) => s.setDiscoverFilters);
+  const locale = useSheltrStore((s) => s.locale);
+  const filters = useSheltrStore((s) => s.discoverFilters);
+  const constraints = useSheltrStore((s) => s.constraints);
+  const listings = useSheltrStore((s) => s.listings);
+  const setDiscoverFilters = useSheltrStore((s) => s.setDiscoverFilters);
   const max = constraints?.maxRent ?? 4000;
   const zip = constraints?.zipCode ?? "90011";
 

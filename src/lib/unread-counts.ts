@@ -159,3 +159,19 @@ export function resolveMyId(role: UserRole, currentUser: User | null) {
     ? resolveSeeker(currentUser).id
     : resolveLandlord(currentUser).id;
 }
+
+/** An application reuses its showing's thread, so look the conversation up instead of building its ID. */
+export function findConversationId(
+  conversations: Conversation[],
+  link: { applicationId?: string; showingId?: string },
+): string | undefined {
+  const byApp = link.applicationId
+    ? conversations.find((c) => c.applicationId === link.applicationId)
+    : undefined;
+  if (byApp) return byApp.id;
+  return link.showingId
+    ? conversations.find(
+        (c) => c.showingId === link.showingId || c.id === `convo-showing-${link.showingId}`,
+      )?.id
+    : undefined;
+}

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { ListingImage } from "@/components/ui/listing-image";
 import { getMatchReasons } from "@/lib/match-reasons";
 import { t } from "@/lib/i18n";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import type { Listing, Locale } from "@/lib/types";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -26,8 +26,8 @@ export function ListingCard({
   style,
   ...pointerHandlers
 }: ListingCardProps) {
-  const constraints = useDoorwayStore((s) => s.constraints);
-  const likedListings = useDoorwayStore((s) => s.likedListings);
+  const constraints = useSheltrStore((s) => s.constraints);
+  const likedListings = useSheltrStore((s) => s.likedListings);
   const reasons =
     constraints ? getMatchReasons(listing, constraints, likedListings) : [];
 

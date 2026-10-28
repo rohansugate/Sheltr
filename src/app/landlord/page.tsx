@@ -8,18 +8,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ListingImage } from "@/components/ui/listing-image";
 import { displayName, resolveLandlord } from "@/lib/current-user";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import type { Listing } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
 export default function LandlordPage() {
-  const listings = useDoorwayStore((s) => s.listings);
-  const currentUser = useDoorwayStore((s) => s.currentUser);
+  const listings = useSheltrStore((s) => s.listings);
+  const currentUser = useSheltrStore((s) => s.currentUser);
   const landlord = resolveLandlord(currentUser);
-  const applications = useDoorwayStore((s) => s.applications);
-  const showings = useDoorwayStore((s) => s.showings);
-  const publishListing = useDoorwayStore((s) => s.publishListing);
-  const removeListing = useDoorwayStore((s) => s.removeListing);
+  const applications = useSheltrStore((s) => s.applications);
+  const showings = useSheltrStore((s) => s.showings);
+  const publishListing = useSheltrStore((s) => s.publishListing);
+  const removeListing = useSheltrStore((s) => s.removeListing);
 
   const landlordListings = useMemo(
     () => listings.filter((l) => l.landlordId === landlord.id),

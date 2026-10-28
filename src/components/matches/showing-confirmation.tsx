@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 
 export function ShowingConfirmation() {
-  const locale = useDoorwayStore((s) => s.locale);
-  const showing = useDoorwayStore((s) => s.lastConfirmedShowing);
-  const clearConfirmedShowing = useDoorwayStore((s) => s.clearConfirmedShowing);
+  const locale = useSheltrStore((s) => s.locale);
+  const showing = useSheltrStore((s) => s.lastConfirmedShowing);
+  const clearConfirmedShowing = useSheltrStore((s) => s.clearConfirmedShowing);
 
   if (!showing) return null;
 

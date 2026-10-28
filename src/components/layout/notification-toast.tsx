@@ -6,15 +6,15 @@ import {
   filterNotificationsForUser,
   notificationHref,
 } from "@/lib/notifications";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 
 const AUTO_DISMISS_MS = 5000;
 const SWIPE_DISMISS_PX = 48;
 
 export function NotificationToast() {
-  const currentUser = useDoorwayStore((s) => s.currentUser);
-  const notifications = useDoorwayStore((s) => s.notifications);
-  const role = useDoorwayStore((s) => s.role);
+  const currentUser = useSheltrStore((s) => s.currentUser);
+  const notifications = useSheltrStore((s) => s.notifications);
+  const role = useSheltrStore((s) => s.role);
   const seen = useRef(new Set<string>());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragY, setDragY] = useState(0);
@@ -40,7 +40,7 @@ export function NotificationToast() {
 
     seen.current.add(next.id);
     setActiveId(next.id);
-    useDoorwayStore.getState().markNotificationRead(next.id);
+    useSheltrStore.getState().markNotificationRead(next.id);
   }, [mine, role]);
 
   useEffect(() => {

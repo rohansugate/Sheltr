@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 
 export function A11yProvider({ children }: { children: React.ReactNode }) {
-  const a11y = useDoorwayStore((s) => s.a11y);
+  const a11y = useSheltrStore((s) => s.a11y);
 
   useEffect(() => {
     const root = document.documentElement;

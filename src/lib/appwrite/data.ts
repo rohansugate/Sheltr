@@ -7,8 +7,11 @@ import type {
   ChatMessage,
   Conversation,
   Listing,
+  Notification,
   Showing,
+  UserSyncPayload,
 } from "../types";
+import type { Actor } from "../server/authorize";
 
 type Doc = Record<string, unknown> & { $id: string; $createdAt?: string; $updatedAt?: string };
 
@@ -166,121 +169,82 @@ export async function uploadListingImage(params: {
   return fileViewUrl(created.$id);
 }
 
-export async function saveShowing(showing: Showing): Promise<Showing> {
-  const { databases } = createAdminClient();
-  const data = {
-    listingId: showing.listingId,
-    seekerId: showing.seekerId,
-    seekerName: showing.seekerName,
-    date: showing.date,
-    time: showing.time,
-    contactMethod: showing.contactMethod,
-    contactValue: showing.contactValue,
-    status: showing.status,
-    landlordMessage: showing.landlordMessage ?? "",
-  };
-  const doc = (await databases.createDocument({
-    databaseId: APPWRITE.databaseId,
-    collectionId: APPWRITE.collections.showings,
-    documentId: showing.id || ID.unique(),
-    data,
-    permissions: [
-      Permission.read(Role.user(showing.seekerId)),
-      Permission.update(Role.user(showing.seekerId)),
-      Permission.read(Role.users()),
-      Permission.update(Role.users()),
-    ],
-  })) as Doc;
+type DomainCollection = Exclude<keyof typeof APPWRITE.collections, "listings">;
 
+function isNotFound(err: unknown) {
+  return (err as { code?: number })?.code === 404;
+}
+
+async function getDoc(collection: keyof typeof APPWRITE.collections, id: string) {
+  const { databases } = createAdminClient();
+  try {
+    return (await databases.getDocument({
+      databaseId: APPWRITE.databaseId,
+      collectionId: APPWRITE.collections[collection],
+      documentId: id,
+    })) as Doc;
+  } catch (err) {
+    if (isNotFound(err)) return null;
+    throw err;
+  }
+}
+
+async function upsertDoc(
+  collection: DomainCollection,
+  id: string,
+  data: Record<string, unknown>,
+  permissions: string[],
+) {
+  const { databases } = createAdminClient();
+  const params = {
+    databaseId: APPWRITE.databaseId,
+    collectionId: APPWRITE.collections[collection],
+    documentId: id,
+    data,
+    permissions,
+  };
+  try {
+    return (await databases.updateDocument(params)) as Doc;
+  } catch (err) {
+    if (!isNotFound(err)) throw err;
+    return (await databases.createDocument(params)) as Doc;
+  }
+}
+
+async function listAll(
+  collection: DomainCollection,
+  field: string,
+  values: string[],
+  extra: string[] = [],
+): Promise<Doc[]> {
+  if (values.length === 0) return [];
+  const { databases } = createAdminClient();
+  const docs: Doc[] = [];
+  for (let i = 0; i < values.length; i += 100) {
+    const result = await databases.listDocuments({
+      databaseId: APPWRITE.databaseId,
+      collectionId: APPWRITE.collections[collection],
+      queries: [Query.equal(field, values.slice(i, i + 100)), Query.limit(500), ...extra],
+    });
+    docs.push(...(result.documents as Doc[]));
+  }
+  return docs;
+}
+
+/** Read-only access for the people involved; all writes go through the server. */
+export function participantPermissions(...userIds: (string | null | undefined)[]) {
+  return [...new Set(userIds.filter((id): id is string => Boolean(id)))].map((id) =>
+    Permission.read(Role.user(id)),
+  );
+}
+
+export async function getListingOwnerId(listingId: string): Promise<string | null> {
+  const doc = await getDoc("listings", listingId);
+  return doc ? String(doc.landlordId ?? "") || null : null;
+}
+
+function docToShowing(doc: Doc): Showing {
   return {
-    ...showing,
-    id: doc.$id,
-    createdAt: doc.$createdAt ?? showing.createdAt,
-  };
-}
-
-export async function saveApplication(app: Application): Promise<Application> {
-  const { databases } = createAdminClient();
-  const data = {
-    listingId: app.listingId,
-    showingId: app.showingId,
-    seekerId: app.seekerId,
-    seekerName: app.seekerName,
-    packetJson: JSON.stringify(app.packet).slice(0, 1900),
-    status: app.status,
-    sentAt: app.sentAt,
-  };
-  const doc = (await databases.createDocument({
-    databaseId: APPWRITE.databaseId,
-    collectionId: APPWRITE.collections.applications,
-    documentId: app.id || ID.unique(),
-    data,
-    permissions: [
-      Permission.read(Role.user(app.seekerId)),
-      Permission.update(Role.user(app.seekerId)),
-      Permission.read(Role.users()),
-      Permission.update(Role.users()),
-    ],
-  })) as Doc;
-  return { ...app, id: doc.$id };
-}
-
-export async function saveConversation(
-  conversation: Conversation,
-): Promise<Conversation> {
-  const { databases } = createAdminClient();
-  const data = {
-    listingId: conversation.listingId,
-    listingTitle: conversation.listingTitle,
-    seekerId: conversation.seekerId,
-    seekerName: conversation.seekerName,
-    landlordId: conversation.landlordId,
-    landlordName: conversation.landlordName,
-    applicationId: conversation.applicationId ?? "",
-    showingId: conversation.showingId ?? "",
-  };
-  const doc = (await databases.createDocument({
-    databaseId: APPWRITE.databaseId,
-    collectionId: APPWRITE.collections.conversations,
-    documentId: conversation.id || ID.unique(),
-    data,
-    permissions: [
-      Permission.read(Role.user(conversation.seekerId)),
-      Permission.update(Role.user(conversation.seekerId)),
-      Permission.read(Role.user(conversation.landlordId)),
-      Permission.update(Role.user(conversation.landlordId)),
-    ],
-  })) as Doc;
-  return { ...conversation, id: doc.$id };
-}
-
-export async function saveMessage(message: ChatMessage): Promise<ChatMessage> {
-  const { databases } = createAdminClient();
-  const data = {
-    conversationId: message.conversationId,
-    senderId: message.senderId,
-    senderRole: message.senderRole,
-    text: message.text.slice(0, 3900),
-    sentAt: message.sentAt,
-  };
-  const doc = (await databases.createDocument({
-    databaseId: APPWRITE.databaseId,
-    collectionId: APPWRITE.collections.messages,
-    documentId: message.id || ID.unique(),
-    data,
-    permissions: [Permission.read(Role.users()), Permission.update(Role.user(message.senderId))],
-  })) as Doc;
-  return { ...message, id: doc.$id };
-}
-
-export async function listShowings(): Promise<Showing[]> {
-  const { databases } = createAdminClient();
-  const result = await databases.listDocuments({
-    databaseId: APPWRITE.databaseId,
-    collectionId: APPWRITE.collections.showings,
-    queries: [Query.limit(200), Query.orderDesc("$createdAt")],
-  });
-  return (result.documents as Doc[]).map((doc) => ({
     id: doc.$id,
     listingId: String(doc.listingId),
     seekerId: String(doc.seekerId),
@@ -290,54 +254,40 @@ export async function listShowings(): Promise<Showing[]> {
     contactMethod: doc.contactMethod as Showing["contactMethod"],
     contactValue: String(doc.contactValue),
     status: doc.status as Showing["status"],
-    landlordMessage: doc.landlordMessage
-      ? String(doc.landlordMessage)
-      : undefined,
+    landlordMessage: doc.landlordMessage ? String(doc.landlordMessage) : undefined,
     createdAt: doc.$createdAt ?? new Date().toISOString(),
-  }));
+    updatedAt: doc.$updatedAt,
+  };
 }
 
-export async function listApplications(): Promise<Application[]> {
-  const { databases } = createAdminClient();
-  const result = await databases.listDocuments({
-    databaseId: APPWRITE.databaseId,
-    collectionId: APPWRITE.collections.applications,
-    queries: [Query.limit(200), Query.orderDesc("$createdAt")],
-  });
-  return (result.documents as Doc[]).map((doc) => {
-    let packet = {
-      voucherSize: 1,
-      maxRent: 0,
-      voucherCaseNumber: "",
-      employment: "",
-      references: "",
-    };
-    try {
-      packet = { ...packet, ...JSON.parse(String(doc.packetJson ?? "{}")) };
-    } catch {
-      // ignore
-    }
-    return {
-      id: doc.$id,
-      listingId: String(doc.listingId),
-      showingId: String(doc.showingId),
-      seekerId: String(doc.seekerId),
-      seekerName: String(doc.seekerName),
-      packet,
-      status: doc.status as Application["status"],
-      sentAt: String(doc.sentAt ?? doc.$createdAt ?? new Date().toISOString()),
-    };
-  });
+function docToApplication(doc: Doc): Application {
+  let packet: Application["packet"] = {
+    voucherSize: 1,
+    maxRent: 0,
+    voucherCaseNumber: "",
+    employment: "",
+    references: "",
+  };
+  try {
+    packet = { ...packet, ...JSON.parse(String(doc.packetJson ?? "{}")) };
+  } catch {
+    // keep defaults
+  }
+  return {
+    id: doc.$id,
+    listingId: String(doc.listingId),
+    showingId: String(doc.showingId),
+    seekerId: String(doc.seekerId),
+    seekerName: String(doc.seekerName),
+    packet,
+    status: doc.status as Application["status"],
+    sentAt: String(doc.sentAt ?? doc.$createdAt ?? new Date().toISOString()),
+    updatedAt: doc.$updatedAt,
+  };
 }
 
-export async function listConversations(): Promise<Conversation[]> {
-  const { databases } = createAdminClient();
-  const result = await databases.listDocuments({
-    databaseId: APPWRITE.databaseId,
-    collectionId: APPWRITE.collections.conversations,
-    queries: [Query.limit(200), Query.orderDesc("$createdAt")],
-  });
-  return (result.documents as Doc[]).map((doc) => ({
+function docToConversation(doc: Doc): Conversation {
+  return {
     id: doc.$id,
     listingId: String(doc.listingId),
     listingTitle: String(doc.listingTitle),
@@ -347,23 +297,221 @@ export async function listConversations(): Promise<Conversation[]> {
     landlordName: String(doc.landlordName),
     applicationId: doc.applicationId ? String(doc.applicationId) : undefined,
     showingId: doc.showingId ? String(doc.showingId) : undefined,
+    seekerLastReadAt: doc.seekerLastReadAt ? String(doc.seekerLastReadAt) : undefined,
+    landlordLastReadAt: doc.landlordLastReadAt ? String(doc.landlordLastReadAt) : undefined,
     createdAt: doc.$createdAt ?? new Date().toISOString(),
-  }));
+  };
 }
 
-export async function listMessages(): Promise<ChatMessage[]> {
-  const { databases } = createAdminClient();
-  const result = await databases.listDocuments({
-    databaseId: APPWRITE.databaseId,
-    collectionId: APPWRITE.collections.messages,
-    queries: [Query.limit(500), Query.orderAsc("sentAt")],
-  });
-  return (result.documents as Doc[]).map((doc) => ({
+function docToMessage(doc: Doc): ChatMessage {
+  return {
     id: doc.$id,
     conversationId: String(doc.conversationId),
     senderId: String(doc.senderId),
     senderRole: doc.senderRole as ChatMessage["senderRole"],
     text: String(doc.text),
     sentAt: String(doc.sentAt ?? doc.$createdAt ?? new Date().toISOString()),
-  }));
+  };
+}
+
+function docToNotification(doc: Doc): Notification {
+  const recipientId = String(doc.recipientId);
+  const isSeeker = doc.recipientRole === "SEEKER";
+  return {
+    id: doc.$id,
+    title: String(doc.title ?? ""),
+    message: String(doc.message ?? ""),
+    channels: ["in_app"],
+    read: Boolean(doc.read),
+    createdAt: String(doc.createdAt ?? doc.$createdAt ?? new Date().toISOString()),
+    conversationId: doc.conversationId ? String(doc.conversationId) : undefined,
+    seekerId: isSeeker ? recipientId : undefined,
+    landlordId: isSeeker ? undefined : recipientId,
+    fromName: doc.fromName ? String(doc.fromName) : undefined,
+  };
+}
+
+export async function getShowing(id: string) {
+  const doc = await getDoc("showings", id);
+  return doc ? docToShowing(doc) : null;
+}
+
+export async function getApplication(id: string) {
+  const doc = await getDoc("applications", id);
+  return doc ? docToApplication(doc) : null;
+}
+
+export async function getConversation(id: string) {
+  const doc = await getDoc("conversations", id);
+  return doc ? docToConversation(doc) : null;
+}
+
+export async function saveShowing(showing: Showing, landlordId: string | null) {
+  const doc = await upsertDoc(
+    "showings",
+    showing.id,
+    {
+      listingId: showing.listingId,
+      seekerId: showing.seekerId,
+      seekerName: showing.seekerName,
+      date: showing.date,
+      time: showing.time,
+      contactMethod: showing.contactMethod,
+      contactValue: showing.contactValue,
+      status: showing.status,
+      landlordMessage: showing.landlordMessage ?? "",
+    },
+    participantPermissions(showing.seekerId, landlordId),
+  );
+  return docToShowing(doc);
+}
+
+export async function saveApplication(app: Application, landlordId: string | null) {
+  const doc = await upsertDoc(
+    "applications",
+    app.id,
+    {
+      listingId: app.listingId,
+      showingId: app.showingId,
+      seekerId: app.seekerId,
+      seekerName: app.seekerName,
+      packetJson: JSON.stringify(app.packet).slice(0, 1900),
+      status: app.status,
+      sentAt: app.sentAt,
+    },
+    participantPermissions(app.seekerId, landlordId),
+  );
+  return docToApplication(doc);
+}
+
+export async function saveConversation(conversation: Conversation) {
+  const doc = await upsertDoc(
+    "conversations",
+    conversation.id,
+    {
+      listingId: conversation.listingId,
+      listingTitle: conversation.listingTitle.slice(0, 256),
+      seekerId: conversation.seekerId,
+      seekerName: conversation.seekerName.slice(0, 128),
+      landlordId: conversation.landlordId,
+      landlordName: conversation.landlordName.slice(0, 128),
+      applicationId: conversation.applicationId ?? "",
+      showingId: conversation.showingId ?? "",
+    },
+    participantPermissions(conversation.seekerId, conversation.landlordId),
+  );
+  return docToConversation(doc);
+}
+
+export async function markConversationReadAt(
+  conversationId: string,
+  field: "seekerLastReadAt" | "landlordLastReadAt",
+  readAt: string,
+) {
+  const { databases } = createAdminClient();
+  await databases.updateDocument({
+    databaseId: APPWRITE.databaseId,
+    collectionId: APPWRITE.collections.conversations,
+    documentId: conversationId,
+    data: { [field]: readAt },
+  });
+}
+
+export async function saveMessage(message: ChatMessage, conversation: Conversation) {
+  const doc = await upsertDoc(
+    "messages",
+    message.id,
+    {
+      conversationId: message.conversationId,
+      senderId: message.senderId,
+      senderRole: message.senderRole,
+      text: message.text,
+      sentAt: message.sentAt,
+    },
+    participantPermissions(conversation.seekerId, conversation.landlordId),
+  );
+  return docToMessage(doc);
+}
+
+export async function saveNotification(notification: Notification) {
+  const recipientId = notification.seekerId ?? notification.landlordId;
+  if (!recipientId) return null;
+  const doc = await upsertDoc(
+    "notifications",
+    notification.id,
+    {
+      recipientId,
+      recipientRole: notification.seekerId ? "SEEKER" : "LANDLORD",
+      title: notification.title,
+      message: notification.message,
+      conversationId: notification.conversationId ?? "",
+      fromName: notification.fromName ?? "",
+      read: false,
+      createdAt: notification.createdAt,
+    },
+    participantPermissions(recipientId),
+  );
+  return docToNotification(doc);
+}
+
+export async function markNotificationReadFor(id: string, userId: string) {
+  const doc = await getDoc("notifications", id);
+  if (!doc || String(doc.recipientId) !== userId) return false;
+  const { databases } = createAdminClient();
+  await databases.updateDocument({
+    databaseId: APPWRITE.databaseId,
+    collectionId: APPWRITE.collections.notifications,
+    documentId: id,
+    data: { read: true },
+  });
+  return true;
+}
+
+export type UserDomainData = UserSyncPayload;
+
+/** Only the records the signed-in user is a party to. */
+export async function listDomainForUser(actor: Actor): Promise<UserDomainData> {
+  const newestFirst = [Query.orderDesc("$createdAt")];
+  let showingDocs: Doc[];
+  let applicationDocs: Doc[];
+
+  if (actor.role === "SEEKER") {
+    [showingDocs, applicationDocs] = await Promise.all([
+      listAll("showings", "seekerId", [actor.id], newestFirst),
+      listAll("applications", "seekerId", [actor.id], newestFirst),
+    ]);
+  } else {
+    const ownListingIds = (await listListingsByLandlord(actor.id)).map((l) => l.id);
+    [showingDocs, applicationDocs] = await Promise.all([
+      listAll("showings", "listingId", ownListingIds, newestFirst),
+      listAll("applications", "listingId", ownListingIds, newestFirst),
+    ]);
+  }
+
+  const [conversationDocs, notificationDocs] = await Promise.all([
+    listAll(
+      "conversations",
+      actor.role === "SEEKER" ? "seekerId" : "landlordId",
+      [actor.id],
+      newestFirst,
+    ),
+    listAll("notifications", "recipientId", [actor.id], newestFirst),
+  ]);
+  const conversations = conversationDocs.map(docToConversation);
+  const messageDocs = await listAll(
+    "messages",
+    "conversationId",
+    conversations.map((c) => c.id),
+    [Query.orderAsc("sentAt")],
+  );
+
+  return {
+    showings: showingDocs.map(docToShowing),
+    applications: applicationDocs.map(docToApplication),
+    conversations,
+    messages: messageDocs.map(docToMessage),
+    notifications: notificationDocs
+      .filter((d) => d.recipientRole === actor.role)
+      .map(docToNotification),
+  };
 }

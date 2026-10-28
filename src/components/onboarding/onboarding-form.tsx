@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { DoorwayHeader } from "@/components/layout/doorway-header";
+import { SheltrHeader } from "@/components/layout/sheltr-header";
 import { Button } from "@/components/ui/button";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import type { HousingSituation, SeekerConstraints, VoucherStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -109,9 +109,9 @@ function ToggleButton({
 
 export function OnboardingForm({ editMode = false }: { editMode?: boolean }) {
   const router = useRouter();
-  const locale = useDoorwayStore((s) => s.locale);
-  const existing = useDoorwayStore((s) => s.constraints);
-  const { setConstraints, completeOnboarding, refreshDeck, setDiscoverFilters } = useDoorwayStore();
+  const locale = useSheltrStore((s) => s.locale);
+  const existing = useSheltrStore((s) => s.constraints);
+  const { setConstraints, completeOnboarding, refreshDeck, setDiscoverFilters } = useSheltrStore();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<SeekerConstraints>(
     existing ?? {
@@ -147,7 +147,7 @@ export function OnboardingForm({ editMode = false }: { editMode?: boolean }) {
   };
 
   return (
-    <div className="doorway-gradient flex min-h-dvh flex-1 flex-col">
+    <div className="sheltr-gradient flex min-h-dvh flex-1 flex-col">
       <div className="mx-6 mt-3 h-0.5 overflow-hidden rounded-full bg-border">
         <div
           className="h-full bg-primary transition-all duration-300"
@@ -155,7 +155,7 @@ export function OnboardingForm({ editMode = false }: { editMode?: boolean }) {
         />
       </div>
 
-      <DoorwayHeader subtitle={editMode ? t(locale, "editPreferences") : "Getting Started"} />
+      <SheltrHeader subtitle={editMode ? t(locale, "editPreferences") : "Getting Started"} />
 
       <div className="flex flex-1 flex-col px-6 pb-6">
         {step === 0 && (

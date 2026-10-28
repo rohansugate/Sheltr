@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { resolveLandlord, resolveSeeker } from "@/lib/current-user";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
 import {
   conversationForUser,
   countUnreadInConversation,
@@ -19,13 +19,13 @@ interface MessagesPanelProps {
 
 export function MessagesPanel({ role }: MessagesPanelProps) {
   const searchParams = useSearchParams();
-  const conversations = useDoorwayStore((s) => s.conversations);
-  const messages = useDoorwayStore((s) => s.messages);
-  const listings = useDoorwayStore((s) => s.listings);
-  const currentUser = useDoorwayStore((s) => s.currentUser);
-  const sendMessage = useDoorwayStore((s) => s.sendMessage);
-  const markConversationRead = useDoorwayStore((s) => s.markConversationRead);
-  const ensureMessagingReady = useDoorwayStore((s) => s.ensureMessagingReady);
+  const conversations = useSheltrStore((s) => s.conversations);
+  const messages = useSheltrStore((s) => s.messages);
+  const listings = useSheltrStore((s) => s.listings);
+  const currentUser = useSheltrStore((s) => s.currentUser);
+  const sendMessage = useSheltrStore((s) => s.sendMessage);
+  const markConversationRead = useSheltrStore((s) => s.markConversationRead);
+  const ensureMessagingReady = useSheltrStore((s) => s.ensureMessagingReady);
 
   const myId =
     role === "SEEKER"
@@ -49,13 +49,16 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
   const [sending, setSending] = useState(false);
   const threadEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const fromUrl = searchParams.get("conversationId");
-    if (fromUrl && myConversations.some((c) => c.id === fromUrl)) {
-      setActiveId(fromUrl);
-      markConversationRead(fromUrl, role);
-    }
-  }, [searchParams, myConversations, role, markConversationRead]);
+  const conversationIdFromUrl = searchParams.get("conversationId");
+  const [appliedUrlId, setAppliedUrlId] = useState<string | null>(null);
+  if (
+    conversationIdFromUrl &&
+    conversationIdFromUrl !== appliedUrlId &&
+    myConversations.some((c) => c.id === conversationIdFromUrl)
+  ) {
+    setAppliedUrlId(conversationIdFromUrl);
+    setActiveId(conversationIdFromUrl);
+  }
 
   const active = myConversations.find((c) => c.id === activeId);
   const thread = active
@@ -68,10 +71,11 @@ export function MessagesPanel({ role }: MessagesPanelProps) {
     threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [thread.length, activeId]);
 
+  const activeConversationId = active?.id;
   useEffect(() => {
-    if (!active) return;
-    markConversationRead(active.id, role);
-  }, [active, thread.length, role, markConversationRead]);
+    if (!activeConversationId) return;
+    markConversationRead(activeConversationId, role);
+  }, [activeConversationId, thread.length, role, markConversationRead]);
 
   const unreadFor = (conversationId: string) => {
     const convo = myConversations.find((c) => c.id === conversationId);

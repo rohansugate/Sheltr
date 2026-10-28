@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
-import { DoorwayHeader } from "@/components/layout/doorway-header";
+import { SheltrHeader } from "@/components/layout/sheltr-header";
 import { ListingCompare } from "@/components/matches/listing-compare";
 import { ListingDetail } from "@/components/matches/listing-detail";
 import { MatchesMap } from "@/components/matches/matches-map";
@@ -12,24 +12,26 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ListingImage } from "@/components/ui/listing-image";
 import { t } from "@/lib/i18n";
-import { useDoorwayStore } from "@/lib/store";
+import { useSheltrStore } from "@/lib/store";
+import { findConversationId } from "@/lib/unread-counts";
 import type { Listing } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
 export default function MatchesPage() {
-  const likedListings = useDoorwayStore((s) => s.likedListings);
-  const compareIds = useDoorwayStore((s) => s.compareIds);
-  const toggleCompareId = useDoorwayStore((s) => s.toggleCompareId);
-  const setCompareIds = useDoorwayStore((s) => s.setCompareIds);
-  const locale = useDoorwayStore((s) => s.locale);
-  const submitApplication = useDoorwayStore((s) => s.submitApplication);
-  const showUiFeedback = useDoorwayStore((s) => s.showUiFeedback);
-  const scheduleShowing = useDoorwayStore((s) => s.scheduleShowing);
-  const canApply = useDoorwayStore((s) => s.canApply);
-  const getShowingForListing = useDoorwayStore((s) => s.getShowingForListing);
-  const applications = useDoorwayStore((s) => s.applications);
-  const constraints = useDoorwayStore((s) => s.constraints);
-  const markSeekerApplicationUpdatesSeen = useDoorwayStore(
+  const likedListings = useSheltrStore((s) => s.likedListings);
+  const compareIds = useSheltrStore((s) => s.compareIds);
+  const toggleCompareId = useSheltrStore((s) => s.toggleCompareId);
+  const setCompareIds = useSheltrStore((s) => s.setCompareIds);
+  const locale = useSheltrStore((s) => s.locale);
+  const submitApplication = useSheltrStore((s) => s.submitApplication);
+  const showUiFeedback = useSheltrStore((s) => s.showUiFeedback);
+  const scheduleShowing = useSheltrStore((s) => s.scheduleShowing);
+  const canApply = useSheltrStore((s) => s.canApply);
+  const getShowingForListing = useSheltrStore((s) => s.getShowingForListing);
+  const applications = useSheltrStore((s) => s.applications);
+  const conversations = useSheltrStore((s) => s.conversations);
+  const constraints = useSheltrStore((s) => s.constraints);
+  const markSeekerApplicationUpdatesSeen = useSheltrStore(
     (s) => s.markSeekerApplicationUpdatesSeen,
   );
   const [tab, setTab] = useState<"list" | "map" | "compare">("list");
@@ -45,7 +47,10 @@ export default function MatchesPage() {
   const getMessageHref = (listingId: string) => {
     const app = applications.find((a) => a.listingId === listingId);
     if (app && ["ACCEPTED", "LEASE_SIGNED"].includes(app.status)) {
-      return `/messages?conversationId=convo-${app.id}`;
+      const id =
+        findConversationId(conversations, { applicationId: app.id, showingId: app.showingId }) ??
+        `convo-${app.id}`;
+      return `/messages?conversationId=${id}`;
     }
     const showing = getShowingForListing(listingId);
     if (showing?.status === "ACCEPTED") {
@@ -63,7 +68,7 @@ export default function MatchesPage() {
 
   return (
     <AppShell>
-      <DoorwayHeader subtitle={`${likedListings.length} saved`} />
+      <SheltrHeader subtitle={`${likedListings.length} saved`} />
 
       <div className="px-5 pb-2">
         {likedListings.length > 0 && (
